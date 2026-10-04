@@ -1,42 +1,53 @@
 {
   "version": 2,
   "functions": {
-    "api/*.js": { "maxDuration": 30 }
+    "api/*.js": {
+      "maxDuration": 30
+    }
   },
   "rewrites": [
-    { "source": "/movies-api", "destination": "/api/movies" },
-    { "source": "/movies-api/:path*", "destination": "/api/movies/:path*" },
-    { "source": "/anime-api", "destination": "/api/anime" },
-    { "source": "/anime-api/:path*", "destination": "/api/anime/:path*" },
-    { "source": "/anime-series-api", "destination": "/api/series" }
+    {
+      "source": "/movies-api",
+      "destination": "/api/movies-full"
+    },
+    {
+      "source": "/anime-api",
+      "destination": "/api/anime-catalog"
+    },
+    {
+      "source": "/anime-episodes-api",
+      "destination": "/api/anime-episodes"
+    },
+    {
+      "source": "/anime-series-api",
+      "destination": "/api/anime-catalog"
+    }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     },
     {
-      "source": "/movies-api(.*)",
+      "source": "/(movies-api|anime-api|anime-episodes-api|anime-series-api)(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
-      ]
-    },
-    {
-      "source": "/anime-api(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
-      ]
-    },
-    {
-      "source": "/anime-series-api(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     }
   ]

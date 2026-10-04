@@ -1,74 +1,69 @@
 # Media Catalog Provider API
 
-Public read-only provider for normalized catalog data.
+مزود قراءة عام للأفلام والأنمي. الهدف أن التطبيق يستهلك بنية موحدة بدل التعامل مباشرة مع ملفات المصدر.
 
 ## Base URL
 
-After Vercel deployment:
+`https://media-catalog-navy.vercel.app`
 
-`https://<your-project>.vercel.app/api`
+## Movies Full API
 
-## Endpoints
+`GET /movies-api?page=1&limit=24`
 
-### Provider info
-`GET /api`
+البحث والتصفية:
 
-### Health
-`GET /api/health`
+`GET /movies-api?q=Resident&genre=رعب`
 
-### Stats
-`GET /api/stats`
+تفاصيل فيلم كامل:
 
-### Movies
-`GET /api/movies?page=1&limit=24`
-`GET /api/movies?q=resident&genre=اكشن`
-`GET /api/movies?id=movie_xxx`
+`GET /movies-api?id=movie_xxx`
 
-### Series
-`GET /api/series?page=1&limit=24`
-`GET /api/series?id=series_xxx`
+قائمة الأفلام تعيد كل المعلومات المتوفرة في المصدر: العنوان، الصورة، التصنيف، رابط الفيديو، ومعلومات playback/source بصيغة موحدة.
 
-Series detail includes the full normalized episode list.
+عند طلب فيلم بـ `id`، يحاول المزود إضافة معلومات TMDb إذا كان `TMDB_API_TOKEN` أو `TMDB_API_KEY` مضبوطاً على Vercel. بدون المفتاح يبقى الفيلم صالحاً ويعاد بمعلومات المصدر فقط.
 
-### Anime episodes
-`GET /api/anime?page=1&limit=24`
-`GET /api/anime?id=episode_xxx`
+## Anime Catalog API
 
-### Search
-`GET /api/search?q=resident&type=all&page=1&limit=24`
+`GET /anime-api?page=1&limit=24`
 
-Supported type values: `all`, `movie`, `series`, `anime`.
+كل نتيجة تمثل أنمي واحداً وليس حلقة.
 
-### Categories
-`GET /api/categories?type=movie`
+تفاصيل أنمي كامل:
 
-### Latest / source order
-`GET /api/latest?type=movie&limit=20`
+`GET /anime-api?id=anime_xxx`
 
-The upstream source does not provide reliable publication timestamps, so this endpoint returns the first items in current source order rather than claiming a real release date.
+التفاصيل ترجع:
 
-## Response shape
+`anime -> seasons -> episodes -> video`
 
-```json
-{
-  "ok": true,
-  "type": "movie",
-  "data": [],
-  "pagination": {
-    "page": 1,
-    "limit": 24,
-    "total": 1545,
-    "pages": 65,
-    "has_more": true
-  }
-}
-```
+وعند طلب التفاصيل يحاول المزود إضافة معلومات Jikan تلقائياً. يمكن تعطيل ذلك بـ `enrich=0`.
+
+## Anime Episodes API
+
+`GET /anime-episodes-api?page=1&limit=24`
+
+للوصول المباشر للحلقات بدون التجميع.
+
+## Compatibility
+
+`GET /anime-series-api` يشير حالياً إلى Anime Catalog API للمحافظة على التوافق مع الروابط السابقة.
+
+## Other endpoints
+
+- `GET /api/search?q=resident&type=all`
+- `GET /api/categories?type=movie`
+- `GET /api/latest?type=movie&limit=20`
+- `GET /api/stats`
+- `GET /api/health`
+- `GET /api`
+
+## Pagination
+
+الحد الأقصى لكل صفحة هو 100 عنصر.
 
 ## Notes
 
-- Maximum page size: 100.
-- CORS is enabled for public read-only access.
-- Upstream JSON is cached in function memory for five minutes.
-- CDN responses use cache headers with stale-while-revalidate.
-- Video files are not proxied or re-hosted; the API returns the original source URL.
-- Ensure you have the rights to use and distribute any content exposed through your applications.
+- CORS متاح للقراءة العامة.
+- ملفات الفيديو لا تمر عبر Vercel ولا يعاد استضافتها؛ الـAPI يعيد رابط المصدر.
+- المصدر الحالي لا يوفر وصفاً وسنة وتقييماً للأفلام، لذلك إثراء معلومات الأفلام يحتاج TMDb على السيرفر.
+- يجب التأكد من حقوق استخدام المحتوى قبل توزيعه في تطبيق إنتاجي.

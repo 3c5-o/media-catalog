@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080b10" />
   <meta name="description" content="كتالوج موحد ومزود API للأفلام والأنمي مبني على بيانات SAMEHJA/live بصورة منظمة." />
   <title>Media Catalog</title>
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <header class="topbar">
@@ -40,8 +40,8 @@
     <nav class="section-tabs" aria-label="أقسام المحتوى">
       <button class="section-tab active" data-section="overview" type="button">الرئيسية</button>
       <button class="section-tab" data-section="movie" type="button">الأفلام</button>
-      <button class="section-tab" data-section="series" type="button">سلاسل الأنمي</button>
-      <button class="section-tab" data-section="anime" type="button">حلقات الأنمي</button>
+      <button class="section-tab" data-section="series" type="button">الأنمي</button>
+      <button class="section-tab" data-section="anime" type="button">كل الحلقات</button>
       <button class="section-tab" data-section="api" type="button">API</button>
       <button class="section-tab" data-section="xtream" type="button">Xtream</button>
       <button class="section-tab" data-section="files" type="button">ملفات المصدر</button>
@@ -57,8 +57,8 @@
       <article class="overview-card" data-jump="series">
         <span class="overview-kicker">SERIES</span>
         <strong id="overviewSeriesCount">0</strong>
-        <h3>سلاسل الأنمي</h3>
-        <p>تجميع حلقات الأنمي تلقائياً حسب اسم السلسلة. المصدر لا يحتوي كتالوج مسلسلات تلفزيونية مستقلاً.</p>
+        <h3>الأنمي</h3>
+        <p>كل أنمي كعنصر واحد، وتحتَه المواسم والحلقات مرتبة تلقائياً.</p>
       </article>
       <article class="overview-card" data-jump="anime">
         <span class="overview-kicker">EPISODES</span>
@@ -127,6 +127,6 @@
     <span>واجهة قراءة وتنظيم للمصدر العام — بيانات الدخول الحساسة غير معروضة ولا يتم استخدامها.</span>
   </footer>
 
-  <script src="app.js?v=7" defer></script>
+  <script src="app.js?v=8" defer></script>
 </body>
 </html>

@@ -32,30 +32,30 @@ const API_BASE = 'https://media-catalog-navy.vercel.app';
 const API_SERVICES = [
   {
     key:'movies',
-    label:'Movies API',
-    title:'واجهة الأفلام',
+    label:'Movies Full API',
+    title:'واجهة الأفلام الكاملة',
     endpoint:'/movies-api',
-    description:'واجهة مستقلة للأفلام. تعيد العنوان والصورة والتصنيف ورابط الفيديو الأصلي ومعرّفاً ثابتاً لكل فيلم.',
-    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث بالاسم','genre التصنيف','id تفاصيل فيلم محدد'],
+    description:'تعيد كل بيانات الفيلم المتوفرة من المصدر بصيغة موحدة مع معلومات التشغيل. عند طلب id تحاول إضافة معلومات TMDb إذا كان مفتاح TMDb مضبوطاً على السيرفر.',
+    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث بالاسم','genre التصنيف','id تفاصيل فيلم محدد','enrich=0 لتعطيل إثراء TMDb'],
     example:'/movies-api?page=1&limit=24&genre=رعب'
   },
   {
     key:'anime',
-    label:'Anime API',
-    title:'واجهة حلقات الأنمي',
+    label:'Anime Catalog API',
+    title:'واجهة الأنمي الكاملة',
     endpoint:'/anime-api',
-    description:'واجهة مستقلة لحلقات الأنمي، وتشمل اسم السلسلة ورقم الحلقة والصورة والتصنيف ورابط الفيديو.',
-    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث','genre التصنيف','id تفاصيل حلقة محددة'],
+    description:'تعرض كل أنمي كعنصر واحد. عند فتحه ترجع المواسم وتحت كل موسم الحلقات وروابط التشغيل، وتضيف معلومات Jikan عند طلب التفاصيل.',
+    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث باسم الأنمي','genre التصنيف','id تفاصيل أنمي كامل','enrich=0 لتعطيل معلومات Jikan'],
     example:'/anime-api?page=1&limit=24&q=KINGDOM'
   },
   {
-    key:'series',
-    label:'Anime Series API',
-    title:'واجهة سلاسل الأنمي',
-    endpoint:'/anime-series-api',
-    description:'تجمع الحلقات حسب series_name وتعيد السلاسل ككيانات مستقلة. تفاصيل السلسلة تتضمن قائمة حلقاتها.',
-    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث باسم السلسلة','genre التصنيف','id تفاصيل سلسلة محددة'],
-    example:'/anime-series-api?page=1&limit=24'
+    key:'episodes',
+    label:'Anime Episodes API',
+    title:'واجهة الحلقات المباشرة',
+    endpoint:'/anime-episodes-api',
+    description:'واجهة منفصلة للحلقات لمن يحتاج الوصول المباشر إلى حلقة بدون المرور بتجميع الأنمي والمواسم.',
+    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث','genre التصنيف','id تفاصيل حلقة'],
+    example:'/anime-episodes-api?page=1&limit=24'
   },
   {
     key:'search',
@@ -117,7 +117,7 @@ const CACHE_KEY = 'media_catalog_full_v2';
 const CACHE_TTL = 30 * 60 * 1000;
 const PAGE_SIZE = 48;
 
-const data = { movies:[], episodes:[], series:[] };
+const data = { movies:[], episodes:[], series:[], animeCatalog:[] };
 const state = { section:'overview', query:'', genre:'all', visible:PAGE_SIZE, filtered:[], updatedAt:null };
 
 const $ = (selector) => document.querySelector(selector);
@@ -468,6 +468,65 @@ function normalizeEpisode(item, index){
   };
 }
 
+
+function parseAnimeSeriesName(value){
+  const original = str(value) || 'غير معروف';
+  const patterns = [
+    /\s+season\s*(\d+)\s*$/i,
+    /\s+(\d+)(?:st|nd|rd|th)\s+season\s*$/i,
+    /\s+s(?:eason)?\s*(\d+)\s*$/i
+  ];
+  for (const pattern of patterns) {
+    const match = original.match(pattern);
+    if (match) {
+      const season = Math.max(1, Number.parseInt(match[1],10) || 1);
+      const base = original.replace(pattern,'').trim() || original;
+      return { original, base, season };
+    }
+  }
+  return { original, base:original, season:1 };
+}
+
+function buildAnimeCatalog(episodes){
+  const groups = new Map();
+  for (const ep of episodes) {
+    const parsed = parseAnimeSeriesName(ep.series);
+    const key = parsed.base.toLocaleLowerCase('en');
+    if (!groups.has(key)) {
+      groups.set(key,{
+        id:'anime-title-' + groups.size,
+        type:'anime_title',
+        title:parsed.base,
+        image:ep.image,
+        genre:ep.genre,
+        seasonCount:0,
+        episodeCount:0,
+        seasons:[]
+      });
+    }
+    const anime = groups.get(key);
+    if (!anime.image && ep.image) anime.image = ep.image;
+    let season = anime.seasons.find(x=>x.season===parsed.season);
+    if (!season) {
+      season={season:parsed.season,title:parsed.original,episodeCount:0,episodes:[]};
+      anime.seasons.push(season);
+    }
+    season.episodes.push(ep);
+    season.episodeCount += 1;
+    anime.episodeCount += 1;
+  }
+  return [...groups.values()].map(anime=>{
+    anime.seasons.sort((a,b)=>a.season-b.season);
+    anime.seasons.forEach(season=>season.episodes.sort((a,b)=>{
+      const na=Number(a.episode), nb=Number(b.episode);
+      if(Number.isFinite(na)&&Number.isFinite(nb)) return na-nb;
+      return a.title.localeCompare(b.title,'ar');
+    }));
+    anime.seasonCount=anime.seasons.length;
+    return anime;
+  });
+}
+
 function buildSeries(episodes){
   const groups = new Map();
   for (const ep of episodes) {
@@ -532,13 +591,14 @@ function applyData(movies, episodes, time, message){
   data.movies = movies;
   data.episodes = episodes;
   data.series = buildSeries(episodes);
+  data.animeCatalog = buildAnimeCatalog(episodes);
   state.updatedAt = time;
 
   $('#movieCount').textContent = formatNumber(data.movies.length);
-  $('#seriesCount').textContent = formatNumber(data.series.length);
+  $('#seriesCount').textContent = formatNumber(data.animeCatalog.length);
   $('#animeCount').textContent = formatNumber(data.episodes.length);
   $('#overviewMovieCount').textContent = formatNumber(data.movies.length);
-  $('#overviewSeriesCount').textContent = formatNumber(data.series.length);
+  $('#overviewSeriesCount').textContent = formatNumber(data.animeCatalog.length);
   $('#overviewAnimeCount').textContent = formatNumber(data.episodes.length);
 
   statusText.textContent = message;
@@ -596,31 +656,23 @@ function setSection(section){
   state.genre = 'all';
   state.visible = PAGE_SIZE;
 
-  grid.addEventListener('click', async event => {
+grid.addEventListener('click', async event => {
   const copyButton = event.target.closest('[data-copy-api]');
   if (!copyButton) return;
-
   const value = copyButton.dataset.copyApi || '';
   let copied = false;
-  try {
-    await navigator.clipboard.writeText(value);
-    copied = true;
-  } catch {
+  try { await navigator.clipboard.writeText(value); copied = true; }
+  catch {
     try {
-      const area = document.createElement('textarea');
-      area.value = value;
-      area.style.position = 'fixed';
-      area.style.opacity = '0';
-      document.body.appendChild(area);
-      area.select();
-      copied = document.execCommand('copy');
-      area.remove();
+      const area=document.createElement('textarea');
+      area.value=value; area.style.position='fixed'; area.style.opacity='0';
+      document.body.appendChild(area); area.select();
+      copied=document.execCommand('copy'); area.remove();
     } catch {}
   }
-
-  const oldText = copyButton.textContent;
-  copyButton.textContent = copied ? 'تم النسخ' : 'انسخ الرابط يدوياً';
-  setTimeout(() => { copyButton.textContent = oldText; }, 1400);
+  const oldText=copyButton.textContent;
+  copyButton.textContent=copied?'تم النسخ':'انسخ الرابط يدوياً';
+  setTimeout(()=>{copyButton.textContent=oldText;},1400);
 });
 
 document.querySelectorAll('.section-tab').forEach(button => {
@@ -643,8 +695,8 @@ function renderSection(){
   const section = state.section;
   const sectionInfo = {
     movie:{ eyebrow:'MOVIES', title:'الأفلام' },
-    series:{ eyebrow:'SERIES', title:'سلاسل الأنمي المجمعة من بيانات الحلقات' },
-    anime:{ eyebrow:'ANIME EPISODES', title:'حلقات الأنمي' },
+    series:{ eyebrow:'ANIME CATALOG', title:'الأنمي — المواسم والحلقات مجمعة' },
+    anime:{ eyebrow:'ANIME EPISODES', title:'كل حلقات الأنمي' },
     api:{ eyebrow:'DEVELOPER API', title:'واجهات API العامة' },
     xtream:{ eyebrow:'XTREAM SOURCES', title:'مصادر Xtream الموجودة في المستودع' },
     files:{ eyebrow:'REPOSITORY FILES', title:'كل ملفات المصدر' }
@@ -677,7 +729,7 @@ function renderSection(){
 
 function currentCollection(){
   if (state.section === 'movie') return data.movies;
-  if (state.section === 'series') return data.series;
+  if (state.section === 'series') return data.animeCatalog;
   if (state.section === 'anime') return data.episodes;
   return [];
 }
@@ -730,8 +782,33 @@ function renderMedia(){
 function mediaCard(item){
   let badge = 'فيلم';
   let meta = item.genre;
-  if (item.type === 'series') {
+  if (item.type === 'anime_title') {
+    const seasons = item.seasons.map(season => {
+      const episodes = season.episodes.map(ep =>
+        '<div class="episode-item"><span>' +
+        escapeHtml(ep.episode ? 'الحلقة ' + ep.episode : ep.title) +
+        '</span>' +
+        (ep.url ? '<a href="' + escapeAttr(ep.url) + '" target="_blank" rel="noopener noreferrer">تشغيل</a>' : '<span>بدون رابط</span>') +
+        '</div>'
+      ).join('');
+      return '<section class="anime-season"><div class="file-row"><strong>الموسم ' +
+        formatNumber(season.season) + '</strong><span class="file-type">' +
+        formatNumber(season.episodeCount) + ' حلقة</span></div><div class="episode-list">' + episodes + '</div></section>';
+    }).join('');
+
+    dialogContent.innerHTML = '<div class="detail"><div>' + image + '</div><div>' +
+      '<div class="chips"><span class="chip">أنمي</span><span class="chip">' + escapeHtml(item.genre) +
+      '</span><span class="chip">' + formatNumber(item.seasonCount) + ' موسم</span><span class="chip">' +
+      formatNumber(item.episodeCount) + ' حلقة</span></div>' +
+      '<h3>' + escapeHtml(item.title) + '</h3>' +
+      '<p>تم جمع المواسم والحلقات تحت عنوان أنمي واحد تلقائياً من بيانات المصدر.</p>' +
+      '<div class="anime-seasons">' + seasons + '</div></div></div>';
+  } else if (item.type === 'series') {
     badge = formatNumber(item.episodeCount) + ' حلقة';
+    meta = item.genre;
+  }
+  if (item.type === 'anime_title') {
+    badge = formatNumber(item.seasonCount) + ' موسم • ' + formatNumber(item.episodeCount) + ' حلقة';
     meta = item.genre;
   }
   if (item.type === 'anime') {
@@ -751,7 +828,7 @@ function mediaCard(item){
 }
 
 function findMedia(id){
-  return [...data.movies,...data.series,...data.episodes].find(item => item.id === id);
+  return [...data.movies,...data.animeCatalog,...data.series,...data.episodes].find(item => item.id === id);
 }
 
 function openMedia(id){

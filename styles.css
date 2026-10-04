@@ -62,3 +62,11 @@ button{touch-action:manipulation}
 .stream-status{position:absolute;right:10px;bottom:10px;z-index:2;padding:6px 9px;border-radius:10px;background:rgba(0,0,0,.66);backdrop-filter:blur(8px);font-size:10px;color:#dbe4ee;pointer-events:none}
 .stream-start[hidden]{display:none}
 .detail-video-shell video{width:100%;height:100%;background:#000;object-fit:contain}
+
+.buffer-meter{position:absolute;left:10px;right:10px;bottom:34px;height:4px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;z-index:2;pointer-events:none}
+.buffer-meter span{display:block;height:100%;width:0;background:var(--accent);transition:width .25s linear}
+.buffer-label{position:absolute;left:10px;bottom:10px;z-index:2;padding:5px 8px;border-radius:9px;background:rgba(0,0,0,.58);backdrop-filter:blur(7px);font-size:10px;color:#dbe4ee;pointer-events:none}
+.stream-status{bottom:auto;top:10px}
+@media(max-width:600px){
+  .buffer-label{font-size:9px}
+}

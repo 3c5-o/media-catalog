@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0a0d12" />
-  <meta name="description" content="كتالوج محتوى يعتمد على JSON خارجي مع بحث وتصنيفات." />
+  <meta name="theme-color" content="#080b10" />
+  <meta name="description" content="كتالوج موحد لعرض أقسام مستودع SAMEHJA/live بصورة منظمة وآمنة." />
   <title>Media Catalog</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -14,7 +14,7 @@
       <div class="brand-mark">M</div>
       <div>
         <h1>Media Catalog</h1>
-        <p>مصدر JSON خارجي متجدد</p>
+        <p>SAMEHJA/live Explorer</p>
       </div>
     </div>
     <button id="refreshBtn" class="icon-btn" type="button" aria-label="تحديث البيانات">↻</button>
@@ -22,46 +22,91 @@
 
   <main class="shell">
     <section class="hero">
-      <div>
-        <span class="eyebrow">LIVE CATALOG</span>
-        <h2>واجهة موحّدة لعرض بيانات الأفلام والأنمي</h2>
-        <p>يتم جلب البيانات مباشرة من المصدر العام، مع تخزين مؤقت محلي لتقليل التحميل.</p>
+      <div class="hero-copy">
+        <span class="eyebrow">FULL REPOSITORY CATALOG</span>
+        <h2>كل أقسام المصدر في واجهة واحدة</h2>
+        <p>الأفلام، السلاسل والحلقات، الأنمي، معلومات مصادر Xtream، وملفات المستودع. بيانات الاتصال الحساسة لا يتم عرضها أو تحميلها في المتصفح.</p>
       </div>
       <div class="stats" aria-live="polite">
-        <div class="stat"><strong id="totalCount">0</strong><span>إجمالي</span></div>
         <div class="stat"><strong id="movieCount">0</strong><span>أفلام</span></div>
-        <div class="stat"><strong id="animeCount">0</strong><span>أنمي</span></div>
+        <div class="stat"><strong id="seriesCount">0</strong><span>سلاسل</span></div>
+        <div class="stat"><strong id="animeCount">0</strong><span>حلقات</span></div>
+        <div class="stat"><strong id="xtreamCount">6</strong><span>Xtream</span></div>
+        <div class="stat"><strong id="fileCount">9</strong><span>ملفات</span></div>
       </div>
     </section>
 
-    <section class="controls" aria-label="أدوات البحث والتصفية">
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-type="all" type="button">الكل</button>
-        <button class="tab" data-type="movie" type="button">الأفلام</button>
-        <button class="tab" data-type="anime" type="button">الأنمي</button>
-      </div>
-      <div class="filters">
-        <label class="search-wrap">
-          <span class="sr-only">بحث</span>
-          <input id="searchInput" type="search" placeholder="ابحث بالاسم..." autocomplete="off" />
-        </label>
-        <select id="genreSelect" aria-label="التصنيف">
-          <option value="all">كل التصنيفات</option>
-        </select>
-      </div>
+    <nav class="section-tabs" aria-label="أقسام المحتوى">
+      <button class="section-tab active" data-section="overview" type="button">الرئيسية</button>
+      <button class="section-tab" data-section="movie" type="button">الأفلام</button>
+      <button class="section-tab" data-section="series" type="button">المسلسلات / السلاسل</button>
+      <button class="section-tab" data-section="anime" type="button">حلقات الأنمي</button>
+      <button class="section-tab" data-section="xtream" type="button">Xtream</button>
+      <button class="section-tab" data-section="files" type="button">ملفات المصدر</button>
+    </nav>
+
+    <section id="overviewPanel" class="overview-panel">
+      <article class="overview-card" data-jump="movie">
+        <span class="overview-kicker">MOVIES</span>
+        <strong id="overviewMovieCount">0</strong>
+        <h3>الأفلام</h3>
+        <p>عنوان، صورة، تصنيف ورابط المصدر لكل فيلم.</p>
+      </article>
+      <article class="overview-card" data-jump="series">
+        <span class="overview-kicker">SERIES</span>
+        <strong id="overviewSeriesCount">0</strong>
+        <h3>المسلسلات / السلاسل</h3>
+        <p>تجميع الحلقات تلقائياً حسب اسم السلسلة الموجودة في بيانات الأنمي.</p>
+      </article>
+      <article class="overview-card" data-jump="anime">
+        <span class="overview-kicker">EPISODES</span>
+        <strong id="overviewAnimeCount">0</strong>
+        <h3>حلقات الأنمي</h3>
+        <p>عرض الحلقات بشكل منفصل مع رقم الحلقة والتصنيف.</p>
+      </article>
+      <article class="overview-card" data-jump="xtream">
+        <span class="overview-kicker">XTREAM</span>
+        <strong>6</strong>
+        <h3>مصادر Xtream</h3>
+        <p>إظهار وجود ملفات الإعداد بالمصدر مع إخفاء بيانات الدخول.</p>
+      </article>
+      <article class="overview-card" data-jump="files">
+        <span class="overview-kicker">FILES</span>
+        <strong>9</strong>
+        <h3>ملفات المستودع</h3>
+        <p>خريطة كاملة للملفات العامة والوظيفة المعروفة لكل ملف.</p>
+      </article>
     </section>
 
-    <section class="status-row">
-      <span id="statusText">جاري تحميل البيانات...</span>
-      <span id="lastUpdated"></span>
-    </section>
+    <section id="contentPanel" hidden>
+      <div class="controls">
+        <div class="section-heading">
+          <span id="sectionEyebrow">CATALOG</span>
+          <h2 id="sectionTitle">الأفلام</h2>
+        </div>
+        <div class="filters">
+          <label class="search-wrap">
+            <span class="sr-only">بحث</span>
+            <input id="searchInput" type="search" placeholder="ابحث بالاسم..." autocomplete="off" />
+          </label>
+          <select id="genreSelect" aria-label="التصنيف">
+            <option value="all">كل التصنيفات</option>
+          </select>
+        </div>
+      </div>
 
-    <section id="grid" class="grid" aria-live="polite"></section>
-    <button id="loadMoreBtn" class="load-more" type="button" hidden>عرض المزيد</button>
+      <div class="status-row">
+        <span id="statusText">جاري تحميل البيانات...</span>
+        <span id="lastUpdated"></span>
+      </div>
 
-    <section id="emptyState" class="empty" hidden>
-      <h3>لا توجد نتائج</h3>
-      <p>جرّب تغيير البحث أو التصنيف.</p>
+      <section id="grid" class="grid" aria-live="polite"></section>
+      <button id="loadMoreBtn" class="load-more" type="button" hidden>عرض المزيد</button>
+
+      <section id="emptyState" class="empty" hidden>
+        <h3>لا توجد نتائج</h3>
+        <p>جرّب تغيير البحث أو التصنيف.</p>
+      </section>
     </section>
   </main>
 
@@ -71,7 +116,7 @@
   </dialog>
 
   <footer class="footer">
-    <span>واجهة قراءة فقط — لا يتم تضمين بيانات دخول أو أسرار.</span>
+    <span>واجهة قراءة وتنظيم للمصدر العام — بيانات الدخول الحساسة غير معروضة ولا يتم استخدامها.</span>
   </footer>
 
   <script src="app.js" defer></script>

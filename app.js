@@ -26,6 +26,93 @@ const REPOSITORY_FILES = [
   }))
 ];
 
+
+const API_BASE = 'https://media-catalog-navy.vercel.app';
+
+const API_SERVICES = [
+  {
+    key:'movies',
+    label:'Movies API',
+    title:'واجهة الأفلام',
+    endpoint:'/movies-api',
+    description:'واجهة مستقلة للأفلام. تعيد العنوان والصورة والتصنيف ورابط الفيديو الأصلي ومعرّفاً ثابتاً لكل فيلم.',
+    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث بالاسم','genre التصنيف','id تفاصيل فيلم محدد'],
+    example:'/movies-api?page=1&limit=24&genre=رعب'
+  },
+  {
+    key:'anime',
+    label:'Anime API',
+    title:'واجهة حلقات الأنمي',
+    endpoint:'/anime-api',
+    description:'واجهة مستقلة لحلقات الأنمي، وتشمل اسم السلسلة ورقم الحلقة والصورة والتصنيف ورابط الفيديو.',
+    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث','genre التصنيف','id تفاصيل حلقة محددة'],
+    example:'/anime-api?page=1&limit=24&q=KINGDOM'
+  },
+  {
+    key:'series',
+    label:'Anime Series API',
+    title:'واجهة سلاسل الأنمي',
+    endpoint:'/anime-series-api',
+    description:'تجمع الحلقات حسب series_name وتعيد السلاسل ككيانات مستقلة. تفاصيل السلسلة تتضمن قائمة حلقاتها.',
+    params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث باسم السلسلة','genre التصنيف','id تفاصيل سلسلة محددة'],
+    example:'/anime-series-api?page=1&limit=24'
+  },
+  {
+    key:'search',
+    label:'Search API',
+    title:'البحث الموحد',
+    endpoint:'/api/search',
+    description:'بحث واحد ضمن الأفلام وسلاسل الأنمي والحلقات. يمكن حصر النتائج بنوع محدد.',
+    params:['q عبارة البحث (مطلوب)','type = all | movie | series | anime','page رقم الصفحة','limit عدد النتائج'],
+    example:'/api/search?q=Resident&type=all&page=1&limit=24'
+  },
+  {
+    key:'categories',
+    label:'Categories API',
+    title:'التصنيفات',
+    endpoint:'/api/categories',
+    description:'يعيد التصنيفات الموجودة وعدد العناصر داخل كل تصنيف حسب نوع المحتوى.',
+    params:['type = movie | series | anime'],
+    example:'/api/categories?type=movie'
+  },
+  {
+    key:'latest',
+    label:'Latest API',
+    title:'أول المحتوى حسب ترتيب المصدر',
+    endpoint:'/api/latest',
+    description:'يعيد أول العناصر بحسب ترتيب ملف المصدر الحالي. المصدر لا يوفر تاريخ إضافة موثوقاً لذلك لا ندعي أنها أحدث زمنياً.',
+    params:['type = movie | series | anime','limit عدد النتائج (1–100)'],
+    example:'/api/latest?type=movie&limit=20'
+  },
+  {
+    key:'stats',
+    label:'Stats API',
+    title:'إحصائيات المزود',
+    endpoint:'/api/stats',
+    description:'يعيد أعداد الأفلام وسلاسل الأنمي والحلقات وعدد التصنيفات وإصدار المزود.',
+    params:[],
+    example:'/api/stats'
+  },
+  {
+    key:'health',
+    label:'Health API',
+    title:'فحص حالة المزود',
+    endpoint:'/api/health',
+    description:'يفحص قدرة المزود على قراءة المصادر ويعيد الحالة والأعداد ووقت الاستجابة.',
+    params:[],
+    example:'/api/health'
+  },
+  {
+    key:'provider',
+    label:'Provider API',
+    title:'معلومات المزود',
+    endpoint:'/api',
+    description:'نقطة البداية التي تعرض اسم المزود وإصداره وقائمة المسارات العامة المتوفرة.',
+    params:[],
+    example:'/api'
+  }
+];
+
 const CACHE_KEY = 'media_catalog_full_v2';
 const CACHE_TTL = 30 * 60 * 1000;
 const PAGE_SIZE = 48;
@@ -509,7 +596,34 @@ function setSection(section){
   state.genre = 'all';
   state.visible = PAGE_SIZE;
 
-  document.querySelectorAll('.section-tab').forEach(button => {
+  grid.addEventListener('click', async event => {
+  const copyButton = event.target.closest('[data-copy-api]');
+  if (!copyButton) return;
+
+  const value = copyButton.dataset.copyApi || '';
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(value);
+    copied = true;
+  } catch {
+    try {
+      const area = document.createElement('textarea');
+      area.value = value;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      copied = document.execCommand('copy');
+      area.remove();
+    } catch {}
+  }
+
+  const oldText = copyButton.textContent;
+  copyButton.textContent = copied ? 'تم النسخ' : 'انسخ الرابط يدوياً';
+  setTimeout(() => { copyButton.textContent = oldText; }, 1400);
+});
+
+document.querySelectorAll('.section-tab').forEach(button => {
     button.classList.toggle('active', button.dataset.section === section);
   });
 
@@ -529,8 +643,9 @@ function renderSection(){
   const section = state.section;
   const sectionInfo = {
     movie:{ eyebrow:'MOVIES', title:'الأفلام' },
-    series:{ eyebrow:'SERIES', title:'المسلسلات / السلاسل المجمعة من بيانات الأنمي' },
+    series:{ eyebrow:'SERIES', title:'سلاسل الأنمي المجمعة من بيانات الحلقات' },
     anime:{ eyebrow:'ANIME EPISODES', title:'حلقات الأنمي' },
+    api:{ eyebrow:'DEVELOPER API', title:'واجهات API العامة' },
     xtream:{ eyebrow:'XTREAM SOURCES', title:'مصادر Xtream الموجودة في المستودع' },
     files:{ eyebrow:'REPOSITORY FILES', title:'كل ملفات المصدر' }
   }[section];
@@ -543,6 +658,10 @@ function renderSection(){
   loadMoreBtn.hidden = true;
   emptyState.hidden = true;
 
+  if (section === 'api') {
+    renderApi();
+    return;
+  }
   if (section === 'xtream') {
     renderXtream();
     return;
@@ -676,6 +795,43 @@ function openMedia(id){
   }
 
   dialog.showModal();
+}
+
+
+function renderApi(){
+  grid.className = 'api-grid';
+  grid.innerHTML = API_SERVICES.map((service,index) => {
+    const endpoint = API_BASE + service.endpoint;
+    const example = API_BASE + service.example;
+    const params = service.params.length
+      ? '<div class="api-params">' + service.params.map(param => '<span>' + escapeHtml(param) + '</span>').join('') + '</div>'
+      : '<div class="api-no-params">لا يحتاج باراميترات</div>';
+
+    return '<article class="api-card">' +
+      '<div class="api-card-head">' +
+        '<div><span class="api-number">' + String(index + 1).padStart(2,'0') + '</span>' +
+        '<span class="overview-kicker">' + escapeHtml(service.label) + '</span></div>' +
+        '<span class="api-method">GET</span>' +
+      '</div>' +
+      '<h3>' + escapeHtml(service.title) + '</h3>' +
+      '<p>' + escapeHtml(service.description) + '</p>' +
+      '<div class="api-label">المسار</div>' +
+      '<code class="api-code">' + escapeHtml(endpoint) + '</code>' +
+      '<div class="api-label">الباراميترات</div>' +
+      params +
+      '<div class="api-label">مثال جاهز</div>' +
+      '<code class="api-code api-example">' + escapeHtml(example) + '</code>' +
+      '<div class="api-actions">' +
+        '<button class="api-copy" type="button" data-copy-api="' + escapeAttr(example) + '">نسخ المثال</button>' +
+        '<a class="api-open" href="' + escapeAttr(example) + '" target="_blank" rel="noopener noreferrer">فتح API</a>' +
+      '</div>' +
+    '</article>';
+  }).join('');
+
+  statusText.textContent = formatNumber(API_SERVICES.length) + ' واجهات API عامة';
+  lastUpdated.textContent = 'Base URL: ' + API_BASE;
+  loadMoreBtn.hidden = true;
+  emptyState.hidden = true;
 }
 
 function renderXtream(){

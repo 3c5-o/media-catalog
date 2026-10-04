@@ -10,9 +10,9 @@ module.exports = async function handler(req,res){
       const item=q.id
         ? itemById(catalog,q.id)
         : catalog.find(x=>String(x.title||"").trim().toLocaleLowerCase("en")===title);
-      if (!item) return send(res,404,{ok:false,error:"anime_not_found"},60);
+      if (!item) return send(res,404,{ok:false,api_version:"v1",error:"anime_not_found"},60);
       const full = q.enrich === "0" ? item : await enrichAnime(item);
-      return send(res,200,{ok:true,type:"anime_title",grouping:"anime > seasons > episodes",data:full},300);
+      return send(res,200,{ok:true,api_version:"v1",type:"anime_title",grouping:"anime > seasons > episodes",data:full},300);
     }
     const term=String(q.q||"").trim().toLocaleLowerCase("ar");
     const genre=String(q.genre||"").trim();
@@ -22,6 +22,6 @@ module.exports = async function handler(req,res){
       return genreOk&&qOk;
     }).map(summaryAnime);
     const result=page(filtered,q);
-    send(res,200,{ok:true,type:"anime_title",grouping:"anime > seasons > episodes",...result});
-  } catch(e){ send(res,502,{ok:false,error:"source_error",message:String(e?.message||e)},0); }
+    send(res,200,{ok:true,api_version:"v1",type:"anime_title",grouping:"anime > seasons > episodes",...result});
+  } catch(e){ send(res,502,{ok:false,api_version:"v1",error:"source_error",message:String(e?.message||e)},0); }
 };

@@ -6,9 +6,9 @@ module.exports = async function handler(req,res){
     const all=await loadAll();
     if(q.id){
       const item=itemById(all.episodes,q.id);
-      return item?send(res,200,{ok:true,data:item}):send(res,404,{ok:false,error:"episode_not_found"},60);
+      return item?send(res,200,{ok:true,api_version:"v1",type:"anime_episode",data:item}):send(res,404,{ok:false,api_version:"v1",error:"episode_not_found"},60);
     }
     const result=page(filterItems(all.episodes,q),q);
-    send(res,200,{ok:true,type:"anime_episode",...result});
-  }catch(e){send(res,502,{ok:false,error:"source_error",message:String(e?.message||e)},0);}
+    send(res,200,{ok:true,api_version:"v1",type:"anime_episode",...result});
+  }catch(e){send(res,502,{ok:false,api_version:"v1",error:"source_error",message:String(e?.message||e)},0);}
 };

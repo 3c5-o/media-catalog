@@ -34,82 +34,82 @@ const API_SERVICES = [
     key:'movies',
     label:'Movies Full API',
     title:'واجهة الأفلام الكاملة',
-    endpoint:'/movies-api',
+    endpoint:'/api/v1/movies',
     description:'تعيد كل بيانات الفيلم المتوفرة من المصدر بصيغة موحدة مع معلومات التشغيل. عند طلب id تحاول إضافة معلومات TMDb إذا كان مفتاح TMDb مضبوطاً على السيرفر.',
     params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث بالاسم','genre التصنيف','id تفاصيل فيلم محدد','enrich=0 لتعطيل إثراء TMDb'],
-    example:'/movies-api?page=1&limit=24&genre=رعب'
+    example:'/api/v1/movies?page=1&limit=24&genre=رعب'
   },
   {
     key:'anime',
     label:'Anime Catalog API',
     title:'واجهة الأنمي الكاملة',
-    endpoint:'/anime-api',
+    endpoint:'/api/v1/anime',
     description:'تعرض كل أنمي كعنصر واحد. عند فتحه ترجع المواسم وتحت كل موسم الحلقات وروابط التشغيل، وتضيف معلومات Jikan عند طلب التفاصيل.',
     params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث باسم الأنمي','genre التصنيف','id تفاصيل أنمي كامل','enrich=0 لتعطيل معلومات Jikan'],
-    example:'/anime-api?page=1&limit=24&q=KINGDOM'
+    example:'/api/v1/anime?page=1&limit=24&q=KINGDOM'
   },
   {
     key:'episodes',
     label:'Anime Episodes API',
     title:'واجهة الحلقات المباشرة',
-    endpoint:'/anime-episodes-api',
+    endpoint:'/api/v1/anime/episodes',
     description:'واجهة منفصلة للحلقات لمن يحتاج الوصول المباشر إلى حلقة بدون المرور بتجميع الأنمي والمواسم.',
     params:['page رقم الصفحة','limit عدد النتائج (1–100)','q بحث','genre التصنيف','id تفاصيل حلقة'],
-    example:'/anime-episodes-api?page=1&limit=24'
+    example:'/api/v1/anime/episodes?page=1&limit=24'
   },
   {
     key:'search',
     label:'Search API',
     title:'البحث الموحد',
-    endpoint:'/api/search',
+    endpoint:'/api/v1/search',
     description:'بحث واحد ضمن الأفلام وسلاسل الأنمي والحلقات. يمكن حصر النتائج بنوع محدد.',
     params:['q عبارة البحث (مطلوب)','type = all | movie | anime | episode','series يعمل كاسم توافق لـ anime','page رقم الصفحة','limit عدد النتائج'],
-    example:'/api/search?q=Resident&type=all&page=1&limit=24'
+    example:'/api/v1/search?q=Resident&type=all&page=1&limit=24'
   },
   {
     key:'categories',
     label:'Categories API',
     title:'التصنيفات',
-    endpoint:'/api/categories',
+    endpoint:'/api/v1/categories',
     description:'يعيد التصنيفات الموجودة وعدد العناصر داخل كل تصنيف حسب نوع المحتوى.',
     params:['type = movie | series | anime'],
-    example:'/api/categories?type=movie'
+    example:'/api/v1/categories?type=movie'
   },
   {
     key:'latest',
     label:'Latest API',
     title:'أول المحتوى حسب ترتيب المصدر',
-    endpoint:'/api/latest',
+    endpoint:'/api/v1/latest',
     description:'يعيد أول العناصر بحسب ترتيب ملف المصدر الحالي. المصدر لا يوفر تاريخ إضافة موثوقاً لذلك لا ندعي أنها أحدث زمنياً.',
     params:['type = movie | series | anime','limit عدد النتائج (1–100)'],
-    example:'/api/latest?type=movie&limit=20'
+    example:'/api/v1/latest?type=movie&limit=20'
   },
   {
     key:'stats',
     label:'Stats API',
     title:'إحصائيات المزود',
-    endpoint:'/api/stats',
+    endpoint:'/api/v1/stats',
     description:'يعيد أعداد الأفلام وسلاسل الأنمي والحلقات وعدد التصنيفات وإصدار المزود.',
     params:[],
-    example:'/api/stats'
+    example:'/api/v1/stats'
   },
   {
     key:'health',
     label:'Health API',
     title:'فحص حالة المزود',
-    endpoint:'/api/health',
+    endpoint:'/api/v1/health',
     description:'يفحص قدرة المزود على قراءة المصادر ويعيد الحالة والأعداد ووقت الاستجابة.',
     params:[],
-    example:'/api/health'
+    example:'/api/v1/health'
   },
   {
     key:'provider',
     label:'Provider API',
     title:'معلومات المزود',
-    endpoint:'/api',
+    endpoint:'/api/v1',
     description:'نقطة البداية التي تعرض اسم المزود وإصداره وقائمة المسارات العامة المتوفرة.',
     params:[],
-    example:'/api'
+    example:'/api/v1'
   }
 ];
 
@@ -780,132 +780,124 @@ function renderMedia(){
 }
 
 function mediaCard(item){
-  let badge = 'فيلم';
-  let meta = item.genre;
-  if (item.type === 'anime_title') {
-    const seasons = item.seasons.map(season => {
-      const episodes = season.episodes.map(ep =>
-        '<div class="episode-item"><span>' +
-        escapeHtml(ep.episode ? 'الحلقة ' + ep.episode : ep.title) +
-        '</span>' +
-        (ep.url ? '<a href="' + escapeAttr(ep.url) + '" target="_blank" rel="noopener noreferrer">تشغيل</a>' : '<span>بدون رابط</span>') +
-        '</div>'
-      ).join('');
-      return '<section class="anime-season"><div class="file-row"><strong>الموسم ' +
-        formatNumber(season.season) + '</strong><span class="file-type">' +
-        formatNumber(season.episodeCount) + ' حلقة</span></div><div class="episode-list">' + episodes + '</div></section>';
-    }).join('');
-
-    dialogContent.innerHTML = '<div class="detail"><div>' + image + '</div><div>' +
-      '<div class="chips"><span class="chip">أنمي</span><span class="chip">' + escapeHtml(item.genre) +
-      '</span><span class="chip">' + formatNumber(item.seasonCount) + ' موسم</span><span class="chip">' +
-      formatNumber(item.episodeCount) + ' حلقة</span></div>' +
-      '<h3>' + escapeHtml(item.title) + '</h3>' +
-      '<p>تم جمع المواسم والحلقات تحت عنوان أنمي واحد تلقائياً من بيانات المصدر.</p>' +
-      '<div class="anime-meta-live" data-anime-meta><div class="source-note">جاري تحميل معلومات الأنمي الإضافية...</div></div>' +
-      '<div class="anime-seasons">' + seasons + '</div></div></div>';
-  } else if (item.type === 'series') {
-    badge = formatNumber(item.episodeCount) + ' حلقة';
-    meta = item.genre;
-  }
-  if (item.type === 'anime_title') {
-    badge = formatNumber(item.seasonCount) + ' موسم • ' + formatNumber(item.episodeCount) + ' حلقة';
-    meta = item.genre;
-  }
-  if (item.type === 'anime') {
-    badge = item.episode ? 'حلقة ' + escapeHtml(item.episode) : 'أنمي';
-    meta = item.series || item.genre;
+  let badge='فيلم';
+  let meta=item.genre||'';
+  if(item.type==='anime_title'){
+    badge=formatNumber(item.seasonCount||0)+' موسم • '+formatNumber(item.episodeCount||0)+' حلقة';
+  }else if(item.type==='series'){
+    badge=formatNumber(item.episodeCount||0)+' حلقة';
+  }else if(item.type==='anime'||item.type==='anime_episode'){
+    badge=item.episode?'حلقة '+escapeHtml(item.episode):'أنمي';
+    meta=item.series||item.genre||'';
   }
 
-  const image = item.image
-    ? '<img src="' + escapeAttr(item.image) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML=\'<div class=&quot;poster-fallback&quot;>NO IMAGE</div>\'">'
+  const image=item.image
+    ? '<img src="'+escapeAttr(item.image)+'" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML=\'<div class=&quot;poster-fallback&quot;>NO IMAGE</div>\'">'
     : '<div class="poster-fallback">NO IMAGE</div>';
 
-  return '<article class="card" data-media-id="' + escapeAttr(item.id) + '" tabindex="0">' +
-    '<div class="poster">' + image + '</div>' +
-    '<span class="badge">' + badge + '</span>' +
-    '<div class="card-body"><h3 class="card-title" title="' + escapeAttr(item.title) + '">' + escapeHtml(item.title) + '</h3>' +
-    '<div class="meta">' + escapeHtml(meta) + '</div></div></article>';
+  return '<article class="card" data-media-id="'+escapeAttr(item.id)+'" tabindex="0">'+
+    '<div class="poster">'+image+'</div>'+
+    '<span class="badge">'+badge+'</span>'+
+    '<div class="card-body"><h3 class="card-title" title="'+escapeAttr(item.title)+'">'+escapeHtml(item.title)+'</h3>'+
+    '<div class="meta">'+escapeHtml(meta)+'</div></div></article>';
 }
 
 function findMedia(id){
-  return [...data.movies,...data.animeCatalog,...data.series,...data.episodes].find(item => item.id === id);
+  return [...data.movies,...data.animeCatalog,...data.series,...data.episodes].find(item=>item.id===id);
 }
 
 function openMedia(id){
-  const item = findMedia(id);
-  if (!item) return;
+  const item=findMedia(id);
+  if(!item) return;
 
-  const image = item.image
-    ? '<img src="' + escapeAttr(item.image) + '" alt="' + escapeAttr(item.title) + '" referrerpolicy="no-referrer">'
+  const image=item.image
+    ? '<img src="'+escapeAttr(item.image)+'" alt="'+escapeAttr(item.title)+'" referrerpolicy="no-referrer">'
     : '<div class="poster-fallback" style="aspect-ratio:2/3;border-radius:17px">NO IMAGE</div>';
 
-  if (item.type === 'series') {
-    const episodes = item.episodes.map(ep =>
-      '<div class="episode-item"><span>' +
-      escapeHtml(ep.episode ? 'الحلقة ' + ep.episode : ep.title) +
-      '</span>' +
-      (ep.url ? '<a href="' + escapeAttr(ep.url) + '" target="_blank" rel="noopener noreferrer">فتح المصدر</a>' : '<span>بدون رابط</span>') +
+  if(item.type==='anime_title'){
+    const seasons=(item.seasons||[]).map(season=>{
+      const episodes=(season.episodes||[]).map(ep=>
+        '<div class="episode-item"><span>'+
+        escapeHtml(ep.episode?'الحلقة '+ep.episode:ep.title)+
+        '</span>'+
+        (ep.url?'<a href="'+escapeAttr(ep.url)+'" target="_blank" rel="noopener noreferrer">تشغيل</a>':'<span>بدون رابط</span>')+
+        '</div>'
+      ).join('');
+      return '<section class="anime-season"><div class="file-row"><strong>الموسم '+
+        formatNumber(season.season)+'</strong><span class="file-type">'+
+        formatNumber(season.episodeCount||season.episode_count||0)+' حلقة</span></div>'+
+        '<div class="episode-list">'+episodes+'</div></section>';
+    }).join('');
+
+    dialogContent.innerHTML='<div class="detail"><div>'+image+'</div><div>'+
+      '<div class="chips"><span class="chip">أنمي</span><span class="chip">'+escapeHtml(item.genre)+
+      '</span><span class="chip">'+formatNumber(item.seasonCount||0)+' موسم</span><span class="chip">'+
+      formatNumber(item.episodeCount||0)+' حلقة</span></div>'+
+      '<h3>'+escapeHtml(item.title)+'</h3>'+
+      '<p>تم جمع المواسم والحلقات تحت عنوان أنمي واحد تلقائياً من بيانات المصدر.</p>'+
+      '<div class="anime-meta-live" data-anime-meta><div class="source-note">جاري تحميل معلومات الأنمي الإضافية...</div></div>'+
+      '<div class="anime-seasons">'+seasons+'</div></div></div>';
+  }else if(item.type==='series'){
+    const eps=(item.episodes||[]).map(ep=>
+      '<div class="episode-item"><span>'+escapeHtml(ep.episode?'الحلقة '+ep.episode:ep.title)+'</span>'+
+      (ep.url?'<a href="'+escapeAttr(ep.url)+'" target="_blank" rel="noopener noreferrer">فتح المصدر</a>':'<span>بدون رابط</span>')+
       '</div>'
     ).join('');
-
-    dialogContent.innerHTML = '<div class="detail"><div>' + image + '</div><div>' +
-      '<div class="chips"><span class="chip">سلسلة</span><span class="chip">' + escapeHtml(item.genre) + '</span><span class="chip">' + formatNumber(item.episodeCount) + ' حلقة</span></div>' +
-      '<h3>' + escapeHtml(item.title) + '</h3>' +
-      '<p>تم تجميع هذه السلسلة تلقائياً من الحلقات التي تحمل نفس <code>series_name</code> في ملف الأنمي.</p>' +
-      '<div class="episode-list">' + episodes + '</div>' +
-      '</div></div>';
-  } else {
-    const chips = [
-      item.type === 'movie' ? 'فيلم' : 'حلقة أنمي',
+    dialogContent.innerHTML='<div class="detail"><div>'+image+'</div><div>'+
+      '<div class="chips"><span class="chip">سلسلة</span><span class="chip">'+escapeHtml(item.genre)+'</span>'+
+      '<span class="chip">'+formatNumber(item.episodeCount||0)+' حلقة</span></div>'+
+      '<h3>'+escapeHtml(item.title)+'</h3><div class="episode-list">'+eps+'</div></div></div>';
+  }else{
+    const chips=[
+      item.type==='movie'?'فيلم':'حلقة أنمي',
       item.genre,
-      item.episode ? 'الحلقة ' + item.episode : ''
-    ].filter(Boolean).map(value => '<span class="chip">' + escapeHtml(value) + '</span>').join('');
+      item.episode?'الحلقة '+item.episode:''
+    ].filter(Boolean).map(v=>'<span class="chip">'+escapeHtml(v)+'</span>').join('');
 
-    dialogContent.innerHTML = '<div class="detail"><div>' + image + '</div><div>' +
-      '<div class="chips">' + chips + '</div>' +
-      '<h3>' + escapeHtml(item.title) + '</h3>' +
-      (item.series ? '<p>السلسلة: <strong>' + escapeHtml(item.series) + '</strong></p>' : '') +
-      '<p>المعلومات معروضة كما تصل من ملف JSON الخارجي.</p>' +
-      (item.url ? inlineVideoPlayer(item) + inlinePlayerButton(item) + '<a class="mini-link source-secondary" href="' + escapeAttr(item.url) + '" target="_blank" rel="noopener noreferrer">فتح رابط المصدر</a>' : '<p>لا يوجد رابط مصدر صالح.</p>') +
-      '<div class="source-note">' + (directVideoMime(item.url) ? 'إذا لم يبدأ الفيديو تلقائياً، اضغط تشغيل من داخل المشغل. ' : '') + 'الموقع لا يعيد استضافة الفيديو؛ توفر الرابط يعتمد على المصدر الخارجي.</div>' +
+    dialogContent.innerHTML='<div class="detail"><div>'+image+'</div><div>'+
+      '<div class="chips">'+chips+'</div><h3>'+escapeHtml(item.title)+'</h3>'+
+      (item.series?'<p>السلسلة: <strong>'+escapeHtml(item.series)+'</strong></p>':'')+
+      (item.url?inlineVideoPlayer(item)+inlinePlayerButton(item)+
+        '<a class="mini-link source-secondary" href="'+escapeAttr(item.url)+'" target="_blank" rel="noopener noreferrer">فتح رابط المصدر</a>'
+        :'<p>لا يوجد رابط مصدر صالح.</p>')+
+      '<div class="source-note">الموقع لا يعيد استضافة الفيديو؛ توفر الرابط يعتمد على المصدر الخارجي.</div>'+
       '</div></div>';
   }
 
   dialog.showModal();
 
-  if (item.type === 'anime_title') {
-    const metaRoot = dialogContent.querySelector('[data-anime-meta]');
-    if (metaRoot) {
-      fetchJson(API_BASE + '/anime-api?title=' + encodeURIComponent(item.title))
-        .then(payload => {
-          const meta = payload?.data?.metadata;
-          if (!meta?.enriched) {
-            metaRoot.innerHTML = '<div class="source-note">معلومات المصدر الخارجي غير متاحة حالياً.</div>';
+  if(item.type==='anime_title'){
+    const metaRoot=dialogContent.querySelector('[data-anime-meta]');
+    if(metaRoot){
+      fetchJson(API_BASE+'/api/v1/anime?title='+encodeURIComponent(item.title))
+        .then(payload=>{
+          const meta=payload?.data?.metadata;
+          if(!meta?.enriched){
+            metaRoot.innerHTML='<div class="source-note">معلومات المصدر الخارجي غير متاحة حالياً.</div>';
             return;
           }
-          const chips = [
-            meta.year ? String(meta.year) : '',
-            meta.score != null ? ('تقييم ' + meta.score) : '',
-            meta.status || '',
-            meta.duration || ''
-          ].filter(Boolean).map(v => '<span class="chip">' + escapeHtml(v) + '</span>').join('');
-          const genres = Array.isArray(meta.genres) && meta.genres.length
-            ? '<p><strong>التصنيفات:</strong> ' + escapeHtml(meta.genres.join('، ')) + '</p>' : '';
-          const studios = Array.isArray(meta.studios) && meta.studios.length
-            ? '<p><strong>الاستوديو:</strong> ' + escapeHtml(meta.studios.join('، ')) + '</p>' : '';
-          metaRoot.innerHTML =
-            '<div class="chips">' + chips + '</div>' +
-            (meta.synopsis ? '<p class="anime-synopsis">' + escapeHtml(meta.synopsis) + '</p>' : '') +
-            genres + studios;
+          const chips=[
+            meta.year?String(meta.year):'',
+            meta.score!=null?'تقييم '+meta.score:'',
+            meta.status||'',
+            meta.duration||''
+          ].filter(Boolean).map(v=>'<span class="chip">'+escapeHtml(v)+'</span>').join('');
+          const genres=Array.isArray(meta.genres)&&meta.genres.length
+            ? '<p><strong>التصنيفات:</strong> '+escapeHtml(meta.genres.join('، '))+'</p>':'';
+          const studios=Array.isArray(meta.studios)&&meta.studios.length
+            ? '<p><strong>الاستوديو:</strong> '+escapeHtml(meta.studios.join('، '))+'</p>':'';
+          const confidence=meta.match?.confidence!=null
+            ? '<p class="source-note">دقة المطابقة: '+Math.round(meta.match.confidence*100)+'%</p>':'';
+          metaRoot.innerHTML='<div class="chips">'+chips+'</div>'+
+            (meta.synopsis?'<p class="anime-synopsis">'+escapeHtml(meta.synopsis)+'</p>':'')+
+            genres+studios+confidence;
         })
-        .catch(() => {
-          metaRoot.innerHTML = '<div class="source-note">تعذر تحميل معلومات الأنمي الإضافية، والحلقات ما زالت متاحة.</div>';
+        .catch(()=>{
+          metaRoot.innerHTML='<div class="source-note">تعذر تحميل معلومات الأنمي الإضافية، والحلقات ما زالت متاحة.</div>';
         });
     }
   }
 }
-
 
 function renderApi(){
   grid.className = 'api-grid';

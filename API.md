@@ -1,69 +1,122 @@
-# Media Catalog Provider API
+# Media Catalog Provider API v1
 
-مزود قراءة عام للأفلام والأنمي. الهدف أن التطبيق يستهلك بنية موحدة بدل التعامل مباشرة مع ملفات المصدر.
+Base URL:
 
-## Base URL
+`https://media-catalog-navy.vercel.app/api/v1`
 
-`https://media-catalog-navy.vercel.app`
+المسارات القديمة ما زالت تعمل للتوافق، لكن أي تطبيق جديد يُفضّل أن يعتمد `/api/v1`.
 
-## Movies Full API
+## Movies
 
-`GET /movies-api?page=1&limit=24`
+قائمة الأفلام:
 
-البحث والتصفية:
+`GET /api/v1/movies?page=1&limit=24`
 
-`GET /movies-api?q=Resident&genre=رعب`
+بحث وتصنيف:
 
-تفاصيل فيلم كامل:
+`GET /api/v1/movies?q=Resident&genre=رعب`
 
-`GET /movies-api?id=movie_xxx`
+تفاصيل بالمعرّف:
 
-قائمة الأفلام تعيد كل المعلومات المتوفرة في المصدر: العنوان، الصورة، التصنيف، رابط الفيديو، ومعلومات playback/source بصيغة موحدة.
+`GET /api/v1/movies/movie_xxx`
 
-عند طلب فيلم بـ `id`، يحاول المزود إضافة معلومات TMDb إذا كان `TMDB_API_TOKEN` أو `TMDB_API_KEY` مضبوطاً على Vercel. بدون المفتاح يبقى الفيلم صالحاً ويعاد بمعلومات المصدر فقط.
+أو:
 
-## Anime Catalog API
+`GET /api/v1/movies?id=movie_xxx`
 
-`GET /anime-api?page=1&limit=24`
+تفاصيل بالاسم الدقيق:
 
-كل نتيجة تمثل أنمي واحداً وليس حلقة.
+`GET /api/v1/movies?title=The%20End%20of%20Oak%20Street`
+
+التفاصيل تجمع بيانات المصدر مع TMDb. المطابقة لا تعتمد أول نتيجة فقط؛ يتم تقييم العنوان والعنوان الأصلي والسنة إن كانت موجودة في اسم المصدر، وتظهر نتيجة المطابقة في `metadata.match`.
+
+## Anime
+
+قائمة الأنمي:
+
+`GET /api/v1/anime?page=1&limit=24`
+
+بحث:
+
+`GET /api/v1/anime?q=KINGDOM`
 
 تفاصيل أنمي كامل:
 
-`GET /anime-api?id=anime_xxx`
+`GET /api/v1/anime/anime_xxx`
 
-التفاصيل ترجع:
+أو:
 
-`anime -> seasons -> episodes -> video`
+`GET /api/v1/anime?id=anime_xxx`
 
-وعند طلب التفاصيل يحاول المزود إضافة معلومات Jikan تلقائياً. يمكن تعطيل ذلك بـ `enrich=0`.
+البنية:
 
-## Anime Episodes API
+`anime -> seasons -> episodes -> playback`
 
-`GET /anime-episodes-api?page=1&limit=24`
+معلومات Jikan تُضاف عند طلب التفاصيل. المطابقة تقارن العناوين الأساسية والإنجليزية واليابانية والبديلة قبل اختيار النتيجة، وتظهر الثقة في `metadata.match.confidence`.
 
-للوصول المباشر للحلقات بدون التجميع.
+لتعطيل الإثراء الخارجي في التفاصيل:
 
-## Compatibility
+`?enrich=0`
 
-`GET /anime-series-api` يشير حالياً إلى Anime Catalog API للمحافظة على التوافق مع الروابط السابقة.
+## Anime Episodes
 
-## Other endpoints
+`GET /api/v1/anime/episodes?page=1&limit=24`
 
-- `GET /api/search?q=resident&type=all`
-- `GET /api/categories?type=movie`
-- `GET /api/latest?type=movie&limit=20`
-- `GET /api/stats`
-- `GET /api/health`
-- `GET /api`
+تفاصيل حلقة:
+
+`GET /api/v1/anime/episodes/episode_xxx`
+
+## Search
+
+`GET /api/v1/search?q=KINGDOM&type=all`
+
+الأنواع:
+
+- `all`
+- `movie`
+- `anime`
+- `episode`
+
+## Categories
+
+`GET /api/v1/categories?type=movie`
+
+أو:
+
+`GET /api/v1/categories?type=anime`
+
+## Latest
+
+`GET /api/v1/latest?type=movie&limit=20`
+
+ملاحظة: المصدر لا يوفر تاريخ إضافة موثوقاً، لذلك الترتيب هو `source_order` وليس ضماناً للأحدث زمنياً.
+
+## Stats
+
+`GET /api/v1/stats`
+
+## Health
+
+`GET /api/v1/health`
 
 ## Pagination
 
-الحد الأقصى لكل صفحة هو 100 عنصر.
+- `page`: يبدأ من 1
+- `limit`: من 1 إلى 100
+
+## Compatibility aliases
+
+هذه الروابط باقية:
+
+- `/movies-api`
+- `/anime-api`
+- `/anime-episodes-api`
+- `/anime-series-api`
 
 ## Notes
 
-- CORS متاح للقراءة العامة.
-- ملفات الفيديو لا تمر عبر Vercel ولا يعاد استضافتها؛ الـAPI يعيد رابط المصدر.
-- المصدر الحالي لا يوفر وصفاً وسنة وتقييماً للأفلام، لذلك إثراء معلومات الأفلام يحتاج TMDb على السيرفر.
-- يجب التأكد من حقوق استخدام المحتوى قبل توزيعه في تطبيق إنتاجي.
+- CORS مفتوح للقراءة العامة.
+- كل الاستجابات ترسل Header باسم `X-API-Version: v1`.
+- الفيديو لا يمر عبر Vercel ولا يعاد استضافته؛ يرجع المزود رابط المصدر.
+- TMDb مستخدم لمعلومات الأفلام، وJikan لمعلومات الأنمي.
+- إذا فشل مزود المعلومات الخارجي، تبقى بيانات المصدر وروابط التشغيل متاحة.

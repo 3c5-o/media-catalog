@@ -7,6 +7,54 @@
   },
   "rewrites": [
     {
+      "source": "/api/v1",
+      "destination": "/api"
+    },
+    {
+      "source": "/api/v1/movies",
+      "destination": "/api/movies-full"
+    },
+    {
+      "source": "/api/v1/movies/:id",
+      "destination": "/api/movies-full?id=:id"
+    },
+    {
+      "source": "/api/v1/anime/episodes",
+      "destination": "/api/anime-episodes"
+    },
+    {
+      "source": "/api/v1/anime/episodes/:id",
+      "destination": "/api/anime-episodes?id=:id"
+    },
+    {
+      "source": "/api/v1/anime",
+      "destination": "/api/anime-catalog"
+    },
+    {
+      "source": "/api/v1/anime/:id",
+      "destination": "/api/anime-catalog?id=:id"
+    },
+    {
+      "source": "/api/v1/search",
+      "destination": "/api/search"
+    },
+    {
+      "source": "/api/v1/categories",
+      "destination": "/api/categories"
+    },
+    {
+      "source": "/api/v1/latest",
+      "destination": "/api/latest"
+    },
+    {
+      "source": "/api/v1/stats",
+      "destination": "/api/stats"
+    },
+    {
+      "source": "/api/v1/health",
+      "destination": "/api/health"
+    },
+    {
       "source": "/movies-api",
       "destination": "/api/movies-full"
     },

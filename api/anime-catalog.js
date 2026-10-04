@@ -5,11 +5,14 @@ module.exports = async function handler(req,res){
     const q=queryOf(req);
     const all=await loadAll();
     const catalog=all.animeCatalog||[];
-    if (q.id) {
-      const item=itemById(catalog,q.id);
+    if (q.id || q.title) {
+      const title=String(q.title||"").trim().toLocaleLowerCase("en");
+      const item=q.id
+        ? itemById(catalog,q.id)
+        : catalog.find(x=>String(x.title||"").trim().toLocaleLowerCase("en")===title);
       if (!item) return send(res,404,{ok:false,error:"anime_not_found"},60);
       const full = q.enrich === "0" ? item : await enrichAnime(item);
-      return send(res,200,{ok:true,type:"anime_title",data:full},300);
+      return send(res,200,{ok:true,type:"anime_title",grouping:"anime > seasons > episodes",data:full},300);
     }
     const term=String(q.q||"").trim().toLocaleLowerCase("ar");
     const genre=String(q.genre||"").trim();

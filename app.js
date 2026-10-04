@@ -63,7 +63,7 @@ const API_SERVICES = [
     title:'البحث الموحد',
     endpoint:'/api/search',
     description:'بحث واحد ضمن الأفلام وسلاسل الأنمي والحلقات. يمكن حصر النتائج بنوع محدد.',
-    params:['q عبارة البحث (مطلوب)','type = all | movie | series | anime','page رقم الصفحة','limit عدد النتائج'],
+    params:['q عبارة البحث (مطلوب)','type = all | movie | anime | episode','series يعمل كاسم توافق لـ anime','page رقم الصفحة','limit عدد النتائج'],
     example:'/api/search?q=Resident&type=all&page=1&limit=24'
   },
   {
@@ -802,6 +802,7 @@ function mediaCard(item){
       formatNumber(item.episodeCount) + ' حلقة</span></div>' +
       '<h3>' + escapeHtml(item.title) + '</h3>' +
       '<p>تم جمع المواسم والحلقات تحت عنوان أنمي واحد تلقائياً من بيانات المصدر.</p>' +
+      '<div class="anime-meta-live" data-anime-meta><div class="source-note">جاري تحميل معلومات الأنمي الإضافية...</div></div>' +
       '<div class="anime-seasons">' + seasons + '</div></div></div>';
   } else if (item.type === 'series') {
     badge = formatNumber(item.episodeCount) + ' حلقة';
@@ -872,6 +873,37 @@ function openMedia(id){
   }
 
   dialog.showModal();
+
+  if (item.type === 'anime_title') {
+    const metaRoot = dialogContent.querySelector('[data-anime-meta]');
+    if (metaRoot) {
+      fetchJson(API_BASE + '/anime-api?title=' + encodeURIComponent(item.title))
+        .then(payload => {
+          const meta = payload?.data?.metadata;
+          if (!meta?.enriched) {
+            metaRoot.innerHTML = '<div class="source-note">معلومات المصدر الخارجي غير متاحة حالياً.</div>';
+            return;
+          }
+          const chips = [
+            meta.year ? String(meta.year) : '',
+            meta.score != null ? ('تقييم ' + meta.score) : '',
+            meta.status || '',
+            meta.duration || ''
+          ].filter(Boolean).map(v => '<span class="chip">' + escapeHtml(v) + '</span>').join('');
+          const genres = Array.isArray(meta.genres) && meta.genres.length
+            ? '<p><strong>التصنيفات:</strong> ' + escapeHtml(meta.genres.join('، ')) + '</p>' : '';
+          const studios = Array.isArray(meta.studios) && meta.studios.length
+            ? '<p><strong>الاستوديو:</strong> ' + escapeHtml(meta.studios.join('، ')) + '</p>' : '';
+          metaRoot.innerHTML =
+            '<div class="chips">' + chips + '</div>' +
+            (meta.synopsis ? '<p class="anime-synopsis">' + escapeHtml(meta.synopsis) + '</p>' : '') +
+            genres + studios;
+        })
+        .catch(() => {
+          metaRoot.innerHTML = '<div class="source-note">تعذر تحميل معلومات الأنمي الإضافية، والحلقات ما زالت متاحة.</div>';
+        });
+    }
+  }
 }
 
 

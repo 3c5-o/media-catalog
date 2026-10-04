@@ -70,3 +70,20 @@ button{touch-action:manipulation}
 @media(max-width:600px){
   .buffer-label{font-size:9px}
 }
+
+.api-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.api-card{position:relative;display:flex;flex-direction:column;min-height:390px;padding:20px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(155deg,var(--panel2),var(--panel));overflow:hidden}
+.api-card::before{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.7}
+.api-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.api-card-head>div{display:flex;align-items:center;gap:9px}
+.api-number{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:rgba(56,193,114,.1);color:var(--accent);font-size:10px;font-weight:900}
+.api-method{padding:5px 8px;border:1px solid rgba(56,193,114,.25);border-radius:999px;color:var(--accent);background:rgba(56,193,114,.08);font:800 10px ui-monospace,SFMono-Regular,Consolas,monospace}
+.api-card h3{margin:17px 0 8px;font-size:18px}.api-card p{margin:0 0 17px;color:var(--muted);font-size:12px;line-height:1.75}
+.api-label{margin:11px 0 6px;color:#758296;font-size:10px;font-weight:800}
+.api-code{display:block;direction:ltr;text-align:left;overflow:auto;white-space:nowrap;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:#090d13;color:#dce6ef;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+.api-example{color:#a8e8c2}
+.api-params{display:flex;flex-wrap:wrap;gap:6px}.api-params span,.api-no-params{padding:6px 8px;border-radius:9px;background:var(--panel3);border:1px solid var(--line);color:#b6c0cd;font-size:10px}
+.api-actions{display:flex;gap:8px;margin-top:auto;padding-top:17px}.api-copy,.api-open{flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:39px;padding:9px 12px;border-radius:11px;font-size:11px;font-weight:800;text-decoration:none;cursor:pointer}
+.api-copy{border:1px solid var(--line);background:var(--panel3);color:var(--text)}.api-open{border:1px solid var(--accent);background:var(--accent);color:#06120b}
+@media(max-width:1000px){.api-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.api-grid{grid-template-columns:1fr}.api-card{min-height:auto}.api-actions{margin-top:5px}}

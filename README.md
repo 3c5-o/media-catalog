@@ -33,3 +33,24 @@
 ## GitHub Pages
 
 `https://3c5-o.github.io/media-catalog/`
+
+
+## Provider API
+
+تمت إضافة مزود API عام للقراءة داخل مجلد `/api`، جاهز للنشر على Vercel.
+
+أهم المسارات بعد النشر:
+
+- `GET /api` — معلومات المزود.
+- `GET /api/health` — فحص المصدر.
+- `GET /api/stats` — الإحصائيات.
+- `GET /api/movies?page=1&limit=24` — الأفلام.
+- `GET /api/series?page=1&limit=24` — السلاسل.
+- `GET /api/anime?page=1&limit=24` — حلقات الأنمي.
+- `GET /api/search?q=resident&type=all` — البحث.
+- `GET /api/categories?type=movie` — التصنيفات.
+- `GET /api/latest?type=movie&limit=20` — أول العناصر حسب ترتيب المصدر.
+
+التفاصيل الكاملة موجودة في [API.md](./API.md).
+
+> الـAPI يعيد روابط الفيديو الأصلية ولا يعيد استضافة ملفات الفيديو.

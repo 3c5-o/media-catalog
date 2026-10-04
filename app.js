@@ -58,6 +58,55 @@ function safeUrl(value){
     return ['http:','https:'].includes(url.protocol) ? url.href : '';
   } catch { return ''; }
 }
+
+function directVideoMime(value){
+  const url = safeUrl(value);
+  if (!url) return '';
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    if (pathname.endsWith('.mp4') || pathname.endsWith('.m4v')) return 'video/mp4';
+    if (pathname.endsWith('.webm')) return 'video/webm';
+    if (pathname.endsWith('.ogv') || pathname.endsWith('.ogg')) return 'video/ogg';
+  } catch {}
+  return '';
+}
+
+function inlinePlayerButton(item){
+  const mime = directVideoMime(item?.url);
+  if (!mime) return '';
+  return '<button class="source-link play-button" type="button" data-play-url="' +
+    escapeAttr(item.url) + '" data-play-title="' + escapeAttr(item.title) +
+    '" data-play-poster="' + escapeAttr(item.image || '') +
+    '">تشغيل الآن</button>';
+}
+
+function openInlinePlayer(url, title, poster){
+  const safe = safeUrl(url);
+  const mime = directVideoMime(safe);
+  if (!safe || !mime) return;
+
+  dialogContent.innerHTML =
+    '<div class="player-view">' +
+      '<div class="player-head"><div><span class="overview-kicker">INTERNAL PLAYER</span><h3>' +
+      escapeHtml(title || 'تشغيل الفيديو') +
+      '</h3></div></div>' +
+      '<div class="video-shell">' +
+        '<video id="internalVideo" controls playsinline preload="metadata"' +
+        (poster ? ' poster="' + escapeAttr(poster) + '"' : '') + '>' +
+          '<source src="' + escapeAttr(safe) + '" type="' + escapeAttr(mime) + '">' +
+          'متصفحك لا يدعم تشغيل هذا الفيديو.' +
+        '</video>' +
+      '</div>' +
+      '<div class="player-actions">' +
+        '<a class="mini-link" href="' + escapeAttr(safe) + '" target="_blank" rel="noopener noreferrer">فتح الرابط مباشرة</a>' +
+      '</div>' +
+    '</div>';
+
+  const video = $('#internalVideo');
+  if (video) {
+    video.play().catch(() => {});
+  }
+}
 function asArray(value, keys){
   if (Array.isArray(value)) return value;
   for (const key of keys) if (Array.isArray(value?.[key])) return value[key];
@@ -392,8 +441,8 @@ function openMedia(id){
       '<h3>' + escapeHtml(item.title) + '</h3>' +
       (item.series ? '<p>السلسلة: <strong>' + escapeHtml(item.series) + '</strong></p>' : '') +
       '<p>المعلومات معروضة كما تصل من ملف JSON الخارجي.</p>' +
-      (item.url ? '<a class="source-link" href="' + escapeAttr(item.url) + '" target="_blank" rel="noopener noreferrer">فتح رابط المصدر</a>' : '<p>لا يوجد رابط مصدر صالح.</p>') +
-      '<div class="source-note">الموقع لا يعيد استضافة الفيديو؛ توفر الرابط يعتمد على المصدر الخارجي.</div>' +
+      (item.url ? inlinePlayerButton(item) + '<a class="mini-link source-secondary" href="' + escapeAttr(item.url) + '" target="_blank" rel="noopener noreferrer">فتح رابط المصدر</a>' : '<p>لا يوجد رابط مصدر صالح.</p>') +
+      '<div class="source-note">' + (directVideoMime(item.url) ? 'هذا الرابط يدعم التشغيل المباشر داخل المتصفح. ' : '') + 'الموقع لا يعيد استضافة الفيديو؛ توفر الرابط يعتمد على المصدر الخارجي.</div>' +
       '</div></div>';
   }
 
@@ -453,8 +502,32 @@ loadMoreBtn.addEventListener('click', () => {
 });
 
 $('#refreshBtn').addEventListener('click', () => loadData(true));
-$('#closeDialog').addEventListener('click', () => dialog.close());
-dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+$('#closeDialog').addEventListener('click', () => {
+  const video = dialog.querySelector('video');
+  if (video) {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+  dialog.close();
+});
+
+dialogContent.addEventListener('click', event => {
+  const playButton = event.target.closest('[data-play-url]');
+  if (!playButton) return;
+  openInlinePlayer(
+    playButton.dataset.playUrl,
+    playButton.dataset.playTitle,
+    playButton.dataset.playPoster
+  );
+});
+
+dialog.addEventListener('click', event => {
+  if (event.target !== dialog) return;
+  const video = dialog.querySelector('video');
+  if (video) video.pause();
+  dialog.close();
+});
 
 setSection('overview');
 loadData();

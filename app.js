@@ -77,7 +77,23 @@ function inlinePlayerButton(item){
   return '<button class="source-link play-button" type="button" data-play-url="' +
     escapeAttr(item.url) + '" data-play-title="' + escapeAttr(item.title) +
     '" data-play-poster="' + escapeAttr(item.image || '') +
-    '">فتح المشغل</button>';
+    '">فتح المشغل الكبير</button>';
+}
+
+function playerMarkup(url, title, poster, compact=false){
+  const safe = safeUrl(url);
+  const mime = directVideoMime(safe);
+  if (!safe || !mime) return '';
+
+  return '<div class="stream-player' + (compact ? ' compact-player' : '') + '" data-stream-player>' +
+    '<div class="video-shell detail-video-shell">' +
+      '<video controls playsinline preload="none" controlsList="nodownload" ' +
+        'data-stream-url="' + escapeAttr(safe) + '" data-stream-mime="' + escapeAttr(mime) + '"' +
+        (poster ? ' poster="' + escapeAttr(poster) + '"' : '') + '></video>' +
+      '<button class="stream-start" type="button" data-stream-start>تشغيل الفيديو</button>' +
+      '<div class="stream-status" data-stream-status>لم يبدأ التحميل بعد</div>' +
+    '</div>' +
+  '</div>';
 }
 
 function inlineVideoPlayer(item){
@@ -85,14 +101,88 @@ function inlineVideoPlayer(item){
   if (!mime) return '';
   return '<div class="detail-player-block">' +
     '<div class="detail-player-label">مشغل الفيديو</div>' +
-    '<div class="video-shell detail-video-shell">' +
-      '<video controls playsinline preload="metadata"' +
-      (item.image ? ' poster="' + escapeAttr(item.image) + '"' : '') + '>' +
-        '<source src="' + escapeAttr(item.url) + '" type="' + escapeAttr(mime) + '">' +
-        'متصفحك لا يدعم تشغيل هذا الفيديو.' +
-      '</video>' +
-    '</div>' +
+    playerMarkup(item.url, item.title, item.image, true) +
   '</div>';
+}
+
+function startStreamPlayer(root){
+  const player = root?.closest?.('[data-stream-player]') || root?.querySelector?.('[data-stream-player]') || root;
+  if (!player) return;
+
+  const video = player.querySelector('video[data-stream-url]');
+  const status = player.querySelector('[data-stream-status]');
+  const startButton = player.querySelector('[data-stream-start]');
+  if (!video) return;
+
+  const url = safeUrl(video.dataset.streamUrl);
+  const mime = video.dataset.streamMime || directVideoMime(url);
+  if (!url || !mime) {
+    if (status) status.textContent = 'رابط الفيديو غير صالح';
+    return;
+  }
+
+  if (!video.dataset.initialized) {
+    const source = document.createElement('source');
+    source.src = url;
+    source.type = mime;
+    video.appendChild(source);
+    video.dataset.initialized = '1';
+
+    video.addEventListener('loadstart', () => {
+      if (status) status.textContent = 'جاري فتح البث...';
+    });
+    video.addEventListener('loadedmetadata', () => {
+      if (status) status.textContent = 'تم تجهيز الفيديو';
+    });
+    video.addEventListener('canplay', () => {
+      if (status) status.textContent = 'جاهز للتشغيل';
+    });
+    video.addEventListener('waiting', () => {
+      if (status) status.textContent = 'جاري التخزين المؤقت...';
+    });
+    video.addEventListener('stalled', () => {
+      if (status) status.textContent = 'الاتصال بالمصدر بطيء أو متوقف مؤقتاً';
+    });
+    video.addEventListener('playing', () => {
+      if (status) status.textContent = 'يتم التشغيل عبر البث المباشر';
+      if (startButton) startButton.hidden = true;
+    });
+    video.addEventListener('pause', () => {
+      if (!video.ended && status) status.textContent = 'متوقف مؤقتاً';
+    });
+    video.addEventListener('error', () => {
+      if (status) status.textContent = 'تعذر تشغيل الفيديو من المصدر. جرّب فتح الرابط مباشرة.';
+      if (startButton) {
+        startButton.hidden = false;
+        startButton.textContent = 'إعادة المحاولة';
+      }
+    });
+
+    video.load();
+  }
+
+  if (startButton) startButton.textContent = 'جاري التشغيل...';
+  video.play().then(() => {
+    if (startButton) startButton.hidden = true;
+  }).catch(() => {
+    if (status) status.textContent = 'اضغط زر التشغيل داخل الفيديو';
+    if (startButton) {
+      startButton.hidden = false;
+      startButton.textContent = 'تشغيل الفيديو';
+    }
+  });
+}
+
+function stopStreamPlayers(root=document){
+  root.querySelectorAll?.('video[data-stream-url]').forEach(video => {
+    try {
+      video.pause();
+      video.removeAttribute('src');
+      video.querySelectorAll('source').forEach(source => source.remove());
+      video.load();
+      delete video.dataset.initialized;
+    } catch {}
+  });
 }
 
 function openInlinePlayer(url, title, poster){
@@ -105,22 +195,15 @@ function openInlinePlayer(url, title, poster){
       '<div class="player-head"><div><span class="overview-kicker">INTERNAL PLAYER</span><h3>' +
       escapeHtml(title || 'تشغيل الفيديو') +
       '</h3></div></div>' +
-      '<div class="video-shell">' +
-        '<video id="internalVideo" controls playsinline preload="metadata"' +
-        (poster ? ' poster="' + escapeAttr(poster) + '"' : '') + '>' +
-          '<source src="' + escapeAttr(safe) + '" type="' + escapeAttr(mime) + '">' +
-          'متصفحك لا يدعم تشغيل هذا الفيديو.' +
-        '</video>' +
-      '</div>' +
+      playerMarkup(safe, title, poster, false) +
       '<div class="player-actions">' +
         '<a class="mini-link" href="' + escapeAttr(safe) + '" target="_blank" rel="noopener noreferrer">فتح الرابط مباشرة</a>' +
       '</div>' +
+      '<p class="source-note">يبدأ جلب الفيديو فقط بعد الضغط على تشغيل، ويترك للمتصفح استخدام طلبات Range/التخزين المؤقت بدل سحب الملف كاملاً مقدماً.</p>' +
     '</div>';
 
-  const video = $('#internalVideo');
-  if (video) {
-    video.play().catch(() => {});
-  }
+  const player = dialogContent.querySelector('[data-stream-player]');
+  if (player) startStreamPlayer(player);
 }
 function asArray(value, keys){
   if (Array.isArray(value)) return value;
@@ -518,16 +601,17 @@ loadMoreBtn.addEventListener('click', () => {
 
 $('#refreshBtn').addEventListener('click', () => loadData(true));
 $('#closeDialog').addEventListener('click', () => {
-  const video = dialog.querySelector('video');
-  if (video) {
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-  }
+  stopStreamPlayers(dialog);
   dialog.close();
 });
 
 dialogContent.addEventListener('click', event => {
+  const streamStart = event.target.closest('[data-stream-start]');
+  if (streamStart) {
+    startStreamPlayer(streamStart);
+    return;
+  }
+
   const playButton = event.target.closest('[data-play-url]');
   if (!playButton) return;
   openInlinePlayer(
@@ -539,8 +623,7 @@ dialogContent.addEventListener('click', event => {
 
 dialog.addEventListener('click', event => {
   if (event.target !== dialog) return;
-  const video = dialog.querySelector('video');
-  if (video) video.pause();
+  stopStreamPlayers(dialog);
   dialog.close();
 });
 

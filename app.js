@@ -77,7 +77,22 @@ function inlinePlayerButton(item){
   return '<button class="source-link play-button" type="button" data-play-url="' +
     escapeAttr(item.url) + '" data-play-title="' + escapeAttr(item.title) +
     '" data-play-poster="' + escapeAttr(item.image || '') +
-    '">تشغيل الآن</button>';
+    '">فتح المشغل</button>';
+}
+
+function inlineVideoPlayer(item){
+  const mime = directVideoMime(item?.url);
+  if (!mime) return '';
+  return '<div class="detail-player-block">' +
+    '<div class="detail-player-label">مشغل الفيديو</div>' +
+    '<div class="video-shell detail-video-shell">' +
+      '<video controls playsinline preload="metadata"' +
+      (item.image ? ' poster="' + escapeAttr(item.image) + '"' : '') + '>' +
+        '<source src="' + escapeAttr(item.url) + '" type="' + escapeAttr(mime) + '">' +
+        'متصفحك لا يدعم تشغيل هذا الفيديو.' +
+      '</video>' +
+    '</div>' +
+  '</div>';
 }
 
 function openInlinePlayer(url, title, poster){
@@ -441,8 +456,8 @@ function openMedia(id){
       '<h3>' + escapeHtml(item.title) + '</h3>' +
       (item.series ? '<p>السلسلة: <strong>' + escapeHtml(item.series) + '</strong></p>' : '') +
       '<p>المعلومات معروضة كما تصل من ملف JSON الخارجي.</p>' +
-      (item.url ? inlinePlayerButton(item) + '<a class="mini-link source-secondary" href="' + escapeAttr(item.url) + '" target="_blank" rel="noopener noreferrer">فتح رابط المصدر</a>' : '<p>لا يوجد رابط مصدر صالح.</p>') +
-      '<div class="source-note">' + (directVideoMime(item.url) ? 'هذا الرابط يدعم التشغيل المباشر داخل المتصفح. ' : '') + 'الموقع لا يعيد استضافة الفيديو؛ توفر الرابط يعتمد على المصدر الخارجي.</div>' +
+      (item.url ? inlineVideoPlayer(item) + inlinePlayerButton(item) + '<a class="mini-link source-secondary" href="' + escapeAttr(item.url) + '" target="_blank" rel="noopener noreferrer">فتح رابط المصدر</a>' : '<p>لا يوجد رابط مصدر صالح.</p>') +
+      '<div class="source-note">' + (directVideoMime(item.url) ? 'إذا لم يبدأ الفيديو تلقائياً، اضغط تشغيل من داخل المشغل. ' : '') + 'الموقع لا يعيد استضافة الفيديو؛ توفر الرابط يعتمد على المصدر الخارجي.</div>' +
       '</div></div>';
   }
 

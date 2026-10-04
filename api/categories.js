@@ -1,4 +1,4 @@
-const { loadAll, send, requireGet, queryOf } = require("./_lib");
+const { loadAll, send, requireGet, queryOf } = require("../lib/provider");
 module.exports = async function handler(req,res){
   if (!requireGet(req,res)) return;
   try {

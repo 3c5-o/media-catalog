@@ -92,6 +92,8 @@ function playerMarkup(url, title, poster, compact=false){
         (poster ? ' poster="' + escapeAttr(poster) + '"' : '') + '></video>' +
       '<button class="stream-start" type="button" data-stream-start>تشغيل الفيديو</button>' +
       '<div class="stream-status" data-stream-status>لم يبدأ التحميل بعد</div>' +
+      '<div class="buffer-meter" aria-hidden="true"><span data-buffer-fill></span></div>' +
+      '<div class="buffer-label" data-buffer-label>سيبدأ التحميل عند الضغط على تشغيل</div>' +
     '</div>' +
   '</div>';
 }
@@ -103,6 +105,114 @@ function inlineVideoPlayer(item){
     '<div class="detail-player-label">مشغل الفيديو</div>' +
     playerMarkup(item.url, item.title, item.image, true) +
   '</div>';
+}
+
+function getBufferedAhead(video){
+  if (!video || !video.buffered || !video.buffered.length) return 0;
+  const t = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+
+  for (let i = 0; i < video.buffered.length; i++) {
+    const start = video.buffered.start(i);
+    const end = video.buffered.end(i);
+    if (t >= start - 0.15 && t <= end + 0.15) {
+      return Math.max(0, end - t);
+    }
+  }
+
+  return 0;
+}
+
+function getBufferedEnd(video){
+  if (!video || !video.buffered || !video.buffered.length) return 0;
+  let end = 0;
+  for (let i = 0; i < video.buffered.length; i++) {
+    end = Math.max(end, video.buffered.end(i));
+  }
+  return end;
+}
+
+function setupBufferMonitor(video, status, player){
+  if (!video || video._smartBufferController) return;
+
+  const fill = player?.querySelector?.('[data-buffer-fill]');
+  const label = player?.querySelector?.('[data-buffer-label]');
+  const controller = {
+    timer:null,
+    waiting:false,
+    lastAhead:0,
+    destroyed:false
+  };
+
+  const update = () => {
+    if (controller.destroyed) return;
+
+    const ahead = getBufferedAhead(video);
+    controller.lastAhead = ahead;
+
+    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+    const bufferedEnd = getBufferedEnd(video);
+    const percent = duration ? Math.min(100, Math.max(0, (bufferedEnd / duration) * 100)) : 0;
+
+    if (fill) fill.style.width = percent.toFixed(2) + '%';
+    if (label) label.textContent = ahead > 0 ? ('مخزن أمامك ' + Math.floor(ahead) + ' ث') : 'جاري تجهيز المخزون';
+
+    if (!video.paused && !video.ended && !video.seeking) {
+      if (ahead >= 12) {
+        if (status) status.textContent = 'تشغيل مستقر • مخزون ممتاز';
+      } else if (ahead >= 5) {
+        if (status) status.textContent = 'تشغيل مستقر • مخزون ' + Math.floor(ahead) + ' ث';
+      } else if (ahead > 0 && !controller.waiting) {
+        if (status) status.textContent = 'تشغيل • جاري زيادة المخزون';
+      }
+    }
+  };
+
+  video.addEventListener('progress', update);
+  video.addEventListener('timeupdate', update);
+  video.addEventListener('durationchange', update);
+
+  video.addEventListener('waiting', () => {
+    controller.waiting = true;
+    if (status) status.textContent = 'الاتصال بطيء قليلاً • جاري تجميع جزء إضافي...';
+    update();
+  });
+
+  video.addEventListener('canplay', () => {
+    controller.waiting = false;
+    if (status) {
+      const ahead = getBufferedAhead(video);
+      status.textContent = ahead >= 5 ? ('جاهز • مخزون ' + Math.floor(ahead) + ' ث') : 'جاهز للتشغيل';
+    }
+    update();
+  });
+
+  video.addEventListener('canplaythrough', () => {
+    controller.waiting = false;
+    if (status) status.textContent = 'التشغيل مستقر';
+    update();
+  });
+
+  video.addEventListener('stalled', () => {
+    if (status) status.textContent = 'المصدر تأخر بالاستجابة • المشغل سيكمل تلقائياً';
+  });
+
+  video.addEventListener('seeking', () => {
+    if (status) status.textContent = 'جاري الانتقال للمقطع المطلوب...';
+  });
+
+  video.addEventListener('seeked', () => {
+    controller.waiting = false;
+    update();
+  });
+
+  controller.timer = setInterval(update, 750);
+  controller.destroy = () => {
+    controller.destroyed = true;
+    if (controller.timer) clearInterval(controller.timer);
+  };
+
+  video._smartBufferController = controller;
+  update();
 }
 
 function startStreamPlayer(root){
@@ -122,36 +232,49 @@ function startStreamPlayer(root){
   }
 
   if (!video.dataset.initialized) {
-    const source = document.createElement('source');
-    source.src = url;
-    source.type = mime;
-    video.appendChild(source);
+    video.preload = 'auto';
+    video.src = url;
     video.dataset.initialized = '1';
 
+    setupBufferMonitor(video, status, player);
+
     video.addEventListener('loadstart', () => {
-      if (status) status.textContent = 'جاري فتح البث...';
+      if (status) status.textContent = 'جاري فتح الفيديو وتجهيز أول جزء...';
     });
+
     video.addEventListener('loadedmetadata', () => {
-      if (status) status.textContent = 'تم تجهيز الفيديو';
+      if (status) status.textContent = 'تم قراءة معلومات الفيديو • جاري تجهيز التشغيل';
     });
-    video.addEventListener('canplay', () => {
-      if (status) status.textContent = 'جاهز للتشغيل';
-    });
-    video.addEventListener('waiting', () => {
-      if (status) status.textContent = 'جاري التخزين المؤقت...';
-    });
-    video.addEventListener('stalled', () => {
-      if (status) status.textContent = 'الاتصال بالمصدر بطيء أو متوقف مؤقتاً';
-    });
+
     video.addEventListener('playing', () => {
-      if (status) status.textContent = 'يتم التشغيل عبر البث المباشر';
+      if (status) {
+        const ahead = getBufferedAhead(video);
+        status.textContent = ahead >= 5 ? ('تشغيل مستقر • مخزون ' + Math.floor(ahead) + ' ث') : 'يتم التشغيل • جاري بناء المخزون';
+      }
       if (startButton) startButton.hidden = true;
     });
+
     video.addEventListener('pause', () => {
-      if (!video.ended && status) status.textContent = 'متوقف مؤقتاً';
+      if (!video.ended && !video.seeking && status) {
+        status.textContent = 'متوقف مؤقتاً';
+      }
     });
+
+    video.addEventListener('ended', () => {
+      if (status) status.textContent = 'انتهى الفيديو';
+    });
+
     video.addEventListener('error', () => {
-      if (status) status.textContent = 'تعذر تشغيل الفيديو من المصدر. جرّب فتح الرابط مباشرة.';
+      const code = video.error?.code;
+      const message = code === 2
+        ? 'مشكلة اتصال بالمصدر'
+        : code === 3
+          ? 'المتصفح لم يستطع فك ترميز الفيديو'
+          : code === 4
+            ? 'صيغة الفيديو غير مدعومة أو الرابط غير متاح'
+            : 'تعذر تشغيل الفيديو من المصدر';
+
+      if (status) status.textContent = message + ' • جرّب إعادة المحاولة';
       if (startButton) {
         startButton.hidden = false;
         startButton.textContent = 'إعادة المحاولة';
@@ -161,21 +284,29 @@ function startStreamPlayer(root){
     video.load();
   }
 
-  if (startButton) startButton.textContent = 'جاري التشغيل...';
-  video.play().then(() => {
-    if (startButton) startButton.hidden = true;
-  }).catch(() => {
-    if (status) status.textContent = 'اضغط زر التشغيل داخل الفيديو';
-    if (startButton) {
-      startButton.hidden = false;
-      startButton.textContent = 'تشغيل الفيديو';
-    }
-  });
+  if (startButton) startButton.textContent = 'جاري تجهيز التشغيل...';
+
+  const playPromise = video.play();
+  if (playPromise && typeof playPromise.then === 'function') {
+    playPromise.then(() => {
+      if (startButton) startButton.hidden = true;
+    }).catch(() => {
+      if (status) status.textContent = 'اضغط تشغيل من داخل الفيديو للبدء';
+      if (startButton) {
+        startButton.hidden = false;
+        startButton.textContent = 'تشغيل الفيديو';
+      }
+    });
+  }
 }
 
 function stopStreamPlayers(root=document){
   root.querySelectorAll?.('video[data-stream-url]').forEach(video => {
     try {
+      if (video._smartBufferController?.destroy) {
+        video._smartBufferController.destroy();
+      }
+      delete video._smartBufferController;
       video.pause();
       video.removeAttribute('src');
       video.querySelectorAll('source').forEach(source => source.remove());

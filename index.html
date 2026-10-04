@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#080b10" />
-  <meta name="description" content="كتالوج موحد لعرض أقسام مستودع SAMEHJA/live بصورة منظمة وآمنة." />
+  <meta name="description" content="كتالوج موحد ومزود API للأفلام والأنمي مبني على بيانات SAMEHJA/live بصورة منظمة." />
   <title>Media Catalog</title>
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
   <header class="topbar">
@@ -25,12 +25,13 @@
       <div class="hero-copy">
         <span class="eyebrow">FULL REPOSITORY CATALOG</span>
         <h2>كل أقسام المصدر في واجهة واحدة</h2>
-        <p>الأفلام، السلاسل والحلقات، الأنمي، معلومات مصادر Xtream، وملفات المستودع. بيانات الاتصال الحساسة لا يتم عرضها أو تحميلها في المتصفح.</p>
+        <p>الأفلام، سلاسل الأنمي وحلقاته، واجهات API العامة، معلومات مصادر Xtream، وملفات المستودع. بيانات الاتصال الحساسة لا يتم عرضها أو تحميلها في المتصفح.</p>
       </div>
       <div class="stats" aria-live="polite">
         <div class="stat"><strong id="movieCount">0</strong><span>أفلام</span></div>
         <div class="stat"><strong id="seriesCount">0</strong><span>سلاسل</span></div>
         <div class="stat"><strong id="animeCount">0</strong><span>حلقات</span></div>
+        <div class="stat"><strong>9</strong><span>API</span></div>
         <div class="stat"><strong id="xtreamCount">6</strong><span>Xtream</span></div>
         <div class="stat"><strong id="fileCount">9</strong><span>ملفات</span></div>
       </div>
@@ -39,8 +40,9 @@
     <nav class="section-tabs" aria-label="أقسام المحتوى">
       <button class="section-tab active" data-section="overview" type="button">الرئيسية</button>
       <button class="section-tab" data-section="movie" type="button">الأفلام</button>
-      <button class="section-tab" data-section="series" type="button">المسلسلات / السلاسل</button>
+      <button class="section-tab" data-section="series" type="button">سلاسل الأنمي</button>
       <button class="section-tab" data-section="anime" type="button">حلقات الأنمي</button>
+      <button class="section-tab" data-section="api" type="button">API</button>
       <button class="section-tab" data-section="xtream" type="button">Xtream</button>
       <button class="section-tab" data-section="files" type="button">ملفات المصدر</button>
     </nav>
@@ -55,14 +57,20 @@
       <article class="overview-card" data-jump="series">
         <span class="overview-kicker">SERIES</span>
         <strong id="overviewSeriesCount">0</strong>
-        <h3>المسلسلات / السلاسل</h3>
-        <p>تجميع الحلقات تلقائياً حسب اسم السلسلة الموجودة في بيانات الأنمي.</p>
+        <h3>سلاسل الأنمي</h3>
+        <p>تجميع حلقات الأنمي تلقائياً حسب اسم السلسلة. المصدر لا يحتوي كتالوج مسلسلات تلفزيونية مستقلاً.</p>
       </article>
       <article class="overview-card" data-jump="anime">
         <span class="overview-kicker">EPISODES</span>
         <strong id="overviewAnimeCount">0</strong>
         <h3>حلقات الأنمي</h3>
         <p>عرض الحلقات بشكل منفصل مع رقم الحلقة والتصنيف.</p>
+      </article>
+      <article class="overview-card" data-jump="api">
+        <span class="overview-kicker">API PROVIDER</span>
+        <strong>9</strong>
+        <h3>واجهات API</h3>
+        <p>مزودات منفصلة للأفلام والأنمي والسلاسل، مع البحث والتصنيفات والأحدث والفحص.</p>
       </article>
       <article class="overview-card" data-jump="xtream">
         <span class="overview-kicker">XTREAM</span>
@@ -119,6 +127,6 @@
     <span>واجهة قراءة وتنظيم للمصدر العام — بيانات الدخول الحساسة غير معروضة ولا يتم استخدامها.</span>
   </footer>
 
-  <script src="app.js?v=6" defer></script>
+  <script src="app.js?v=7" defer></script>
 </body>
 </html>

@@ -137,7 +137,10 @@ const CACHE_TTL = 30 * 60 * 1000;
 const PAGE_SIZE = 48;
 
 const data = { movies:[], episodes:[], series:[], animeCatalog:[] };
-const state = { section:'overview', query:'', genre:'all', visible:PAGE_SIZE, filtered:[], updatedAt:null };
+const state = {
+  section:'overview', query:'', genre:'all', visible:PAGE_SIZE, filtered:[], updatedAt:null,
+  xtream:{ profile:null, auth:null, catalog:null, view:'summary', activeType:'', activeCategory:'', seriesInfo:null, busy:false, message:'' }
+};
 
 const $ = (selector) => document.querySelector(selector);
 const grid = $('#grid');
@@ -181,6 +184,7 @@ function directVideoMime(value){
   if(format==='webm') return 'video/webm';
   if(format==='ogv'||format==='ogg') return 'video/ogg';
   if(format==='m3u8') return 'application/vnd.apple.mpegurl';
+  if(format==='ts') return 'video/mp2t';
   return '';
 }
 
@@ -188,8 +192,8 @@ function playerSupport(value){
   const format=streamFormat(value);
   if(['mp4','m4v','webm','ogv','ogg'].includes(format)) return {format,mode:'native',playable:true};
   if(format==='m3u8') return {format,mode:'hls',playable:true};
+  if(format==='ts') return {format,mode:'mpegts',playable:Boolean(window.mpegts?.isSupported?.()),reason:'يحتاج MPEG-TS runtime في المتصفح'};
   if(format==='mkv') return {format,mode:'external',playable:false,reason:'MKV غير مدعوم بثبات داخل أغلب المتصفحات'};
-  if(format==='ts') return {format,mode:'external',playable:false,reason:'TS المباشر يحتاج تحويل/تغليف مناسب للمتصفح'};
   return {format:format||'unknown',mode:'external',playable:false,reason:'صيغة التشغيل غير معروفة'};
 }
 
@@ -350,6 +354,26 @@ function setupBufferMonitor(video, status, player){
 }
 
 function attachStreamSource(video,url,mode,status){
+  if(mode==='mpegts'){
+    if(window.mpegts?.isSupported?.()){
+      try{
+        const runtime=window.mpegts.createPlayer({type:'mpegts',isLive:false,url},{enableWorker:true,lazyLoad:true,autoCleanupSourceBuffer:true});
+        video._mpegtsInstance=runtime;
+        runtime.attachMediaElement(video);
+        runtime.load();
+        runtime.on?.(window.mpegts.Events.ERROR,()=>{
+          if(status) status.textContent='تعذر تشغيل MPEG-TS من المصدر';
+        });
+        return true;
+      }catch{
+        if(status) status.textContent='تعذر تهيئة مشغل MPEG-TS';
+        return false;
+      }
+    }
+    if(status) status.textContent='هذا المتصفح لا يدعم MPEG-TS';
+    return false;
+  }
+
   if(mode==='hls'){
     if(video.canPlayType('application/vnd.apple.mpegurl') && 'ManagedMediaSource' in window){
       video.src=url;
@@ -449,6 +473,13 @@ function stopStreamPlayers(root=document){
       if(video._hlsInstance){
         video._hlsInstance.destroy();
         delete video._hlsInstance;
+      }
+      if(video._mpegtsInstance){
+        try{video._mpegtsInstance.pause();}catch{}
+        try{video._mpegtsInstance.unload();}catch{}
+        try{video._mpegtsInstance.detachMediaElement();}catch{}
+        try{video._mpegtsInstance.destroy();}catch{}
+        delete video._mpegtsInstance;
       }
       video.pause();
       video.removeAttribute('src');

@@ -55,6 +55,14 @@
       "destination": "/api/health"
     },
     {
+      "source": "/api/v1/formats",
+      "destination": "/api/formats"
+    },
+    {
+      "source": "/api/v1/media-health",
+      "destination": "/api/media-health"
+    },
+    {
       "source": "/movies-api",
       "destination": "/api/movies-full"
     },

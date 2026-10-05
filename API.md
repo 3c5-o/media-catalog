@@ -120,3 +120,45 @@ Base URL:
 - الفيديو لا يمر عبر Vercel ولا يعاد استضافته؛ يرجع المزود رابط المصدر.
 - TMDb مستخدم لمعلومات الأفلام، وJikan لمعلومات الأنمي.
 - إذا فشل مزود المعلومات الخارجي، تبقى بيانات المصدر وروابط التشغيل متاحة.
+
+
+## Formats
+
+`GET /api/v1/formats`
+
+يعرض توزيع صيغ الفيديو ومستوى توافق المتصفح لكل نوع محتوى.
+
+قيم `browser_support` داخل `playback`:
+
+- `native`: MP4/WebM/Ogg — مناسب لمشغل HTML5 مباشرة.
+- `hls`: M3U8 — يحتاج HLS native أو hls.js حسب المتصفح.
+- `limited`: MKV/TS — دعم المتصفح محدود، وقد يحتاج مشغل خارجي أو transcoding/transmux.
+- `unknown`: صيغة غير معروفة.
+
+## Media Link Health
+
+`GET /api/v1/media-health?type=movie&id=movie_xxx`
+
+أو:
+
+`GET /api/v1/media-health?type=episode&id=episode_xxx`
+
+الفحص يقبل فقط IDs موجودة في الكتالوج ولا يقبل URL عشوائي. يتم استخدام HEAD ثم Range GET كـ fallback، مع Cache لمدة 30 دقيقة.
+
+## Rate limiting
+
+يوجد Rate Limit برمجي best-effort بمقدار 120 طلب/دقيقة لكل IP داخل كل Runtime instance، مع Headers:
+
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+- `X-RateLimit-Reset`
+- `Retry-After` عند 429
+
+هذا يحمي من الإساءة البسيطة، لكنه ليس Rate Limit موزعاً عالمياً. للحماية الصارمة على مستوى Edge يجب استخدام Vercel WAF/Firewall rate limiting.
+
+## Cache/Fallback
+
+- Source cache: 5 دقائق.
+- Metadata cache: 6 ساعات.
+- Link health cache: 30 دقيقة.
+- إذا توقف TMDb أو Jikan مؤقتاً، يرجع النظام آخر Metadata مخزنة إذا كانت متوفرة مع `stale:true`.

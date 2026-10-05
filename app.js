@@ -111,6 +111,25 @@ const API_SERVICES = [
     params:[],
     example:'/api/v1'
   }
+,
+  {
+    key:'formats',
+    label:'Formats API',
+    title:'توافق صيغ الفيديو',
+    endpoint:'/api/v1/formats',
+    description:'يعرض توزيع MP4 وM3U8 وMKV وTS ومستوى توافق كل صيغة مع المتصفح.',
+    params:[],
+    example:'/api/v1/formats'
+  },
+  {
+    key:'media-health',
+    label:'Media Health API',
+    title:'فحص رابط التشغيل',
+    endpoint:'/api/v1/media-health',
+    description:'يفحص رابط فيلم أو حلقة معروفة عبر ID فقط، ويعيد الحالة وContent-Type ودعم Range بدون قبول روابط عشوائية.',
+    params:['type = movie | episode','id معرّف العنصر'],
+    example:'/api/v1/media-health?type=movie&id=movie_9k2f87'
+  }
 ];
 
 const CACHE_KEY = 'media_catalog_full_v2';

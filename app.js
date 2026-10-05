@@ -165,51 +165,79 @@ function safeUrl(value){
   } catch { return ''; }
 }
 
+function streamFormat(value){
+  const url=safeUrl(value);
+  if(!url) return '';
+  try{
+    const pathname=new URL(url).pathname.toLowerCase();
+    const match=pathname.match(/\.([a-z0-9]+)$/);
+    return match?match[1]:'';
+  }catch{return '';}
+}
+
 function directVideoMime(value){
-  const url = safeUrl(value);
-  if (!url) return '';
-  try {
-    const pathname = new URL(url).pathname.toLowerCase();
-    if (pathname.endsWith('.mp4') || pathname.endsWith('.m4v')) return 'video/mp4';
-    if (pathname.endsWith('.webm')) return 'video/webm';
-    if (pathname.endsWith('.ogv') || pathname.endsWith('.ogg')) return 'video/ogg';
-  } catch {}
+  const format=streamFormat(value);
+  if(format==='mp4'||format==='m4v') return 'video/mp4';
+  if(format==='webm') return 'video/webm';
+  if(format==='ogv'||format==='ogg') return 'video/ogg';
+  if(format==='m3u8') return 'application/vnd.apple.mpegurl';
   return '';
 }
 
+function playerSupport(value){
+  const format=streamFormat(value);
+  if(['mp4','m4v','webm','ogv','ogg'].includes(format)) return {format,mode:'native',playable:true};
+  if(format==='m3u8') return {format,mode:'hls',playable:true};
+  if(format==='mkv') return {format,mode:'external',playable:false,reason:'MKV غير مدعوم بثبات داخل أغلب المتصفحات'};
+  if(format==='ts') return {format,mode:'external',playable:false,reason:'TS المباشر يحتاج تحويل/تغليف مناسب للمتصفح'};
+  return {format:format||'unknown',mode:'external',playable:false,reason:'صيغة التشغيل غير معروفة'};
+}
+
 function inlinePlayerButton(item){
-  const mime = directVideoMime(item?.url);
-  if (!mime) return '';
-  return '<button class="source-link play-button" type="button" data-play-url="' +
-    escapeAttr(item.url) + '" data-play-title="' + escapeAttr(item.title) +
-    '" data-play-poster="' + escapeAttr(item.image || '') +
+  const support=playerSupport(item?.url);
+  if(!support.playable) return '';
+  return '<button class="source-link play-button" type="button" data-play-url="'+
+    escapeAttr(item.url)+'" data-play-title="'+escapeAttr(item.title)+
+    '" data-play-poster="'+escapeAttr(item.image||'')+
     '">فتح المشغل الكبير</button>';
 }
 
-function playerMarkup(url, title, poster, compact=false){
-  const safe = safeUrl(url);
-  const mime = directVideoMime(safe);
-  if (!safe || !mime) return '';
+function unsupportedPlaybackNote(url){
+  const safe=safeUrl(url);
+  if(!safe) return '';
+  const support=playerSupport(safe);
+  if(support.playable) return '';
+  return '<div class="playback-warning"><strong>'+escapeHtml(support.format.toUpperCase())+
+    '</strong><span>'+escapeHtml(support.reason)+'</span>'+
+    '<a href="'+escapeAttr(safe)+'" target="_blank" rel="noopener noreferrer">فتح المصدر</a></div>';
+}
 
-  return '<div class="stream-player' + (compact ? ' compact-player' : '') + '" data-stream-player>' +
-    '<div class="video-shell detail-video-shell">' +
-      '<video controls playsinline preload="none" controlsList="nodownload" ' +
-        'data-stream-url="' + escapeAttr(safe) + '" data-stream-mime="' + escapeAttr(mime) + '"' +
-        (poster ? ' poster="' + escapeAttr(poster) + '"' : '') + '></video>' +
-      '<button class="stream-start" type="button" data-stream-start>تشغيل الفيديو</button>' +
-      '<div class="stream-status" data-stream-status>لم يبدأ التحميل بعد</div>' +
-      '<div class="buffer-meter" aria-hidden="true"><span data-buffer-fill></span></div>' +
-      '<div class="buffer-label" data-buffer-label>سيبدأ التحميل عند الضغط على تشغيل</div>' +
-    '</div>' +
+function playerMarkup(url,title,poster,compact=false){
+  const safe=safeUrl(url);
+  const support=playerSupport(safe);
+  const mime=directVideoMime(safe);
+  if(!safe) return '';
+  if(!support.playable) return unsupportedPlaybackNote(safe);
+
+  return '<div class="stream-player'+(compact?' compact-player':'')+'" data-stream-player data-stream-mode="'+support.mode+'">'+
+    '<div class="video-shell detail-video-shell">'+
+      '<video controls playsinline preload="none" controlsList="nodownload" '+
+        'data-stream-url="'+escapeAttr(safe)+'" data-stream-mime="'+escapeAttr(mime)+'" data-stream-mode="'+support.mode+'"'+
+        (poster?' poster="'+escapeAttr(poster)+'"':'')+'></video>'+
+      '<button class="stream-start" type="button" data-stream-start>تشغيل الفيديو</button>'+
+      '<div class="stream-status" data-stream-status>لم يبدأ التحميل بعد</div>'+
+      '<div class="buffer-meter" aria-hidden="true"><span data-buffer-fill></span></div>'+
+      '<div class="buffer-label" data-buffer-label>سيبدأ التحميل عند الضغط على تشغيل</div>'+
+    '</div>'+
   '</div>';
 }
 
 function inlineVideoPlayer(item){
-  const mime = directVideoMime(item?.url);
-  if (!mime) return '';
-  return '<div class="detail-player-block">' +
-    '<div class="detail-player-label">مشغل الفيديو</div>' +
-    playerMarkup(item.url, item.title, item.image, true) +
+  const safe=safeUrl(item?.url);
+  if(!safe) return '';
+  return '<div class="detail-player-block">'+
+    '<div class="detail-player-label">مشغل الفيديو</div>'+
+    playerMarkup(item.url,item.title,item.image,true)+
   '</div>';
 }
 
@@ -321,127 +349,143 @@ function setupBufferMonitor(video, status, player){
   update();
 }
 
+function attachStreamSource(video,url,mode,status){
+  if(mode==='hls'){
+    if(video.canPlayType('application/vnd.apple.mpegurl') && 'ManagedMediaSource' in window){
+      video.src=url;
+      return true;
+    }
+    if(window.Hls && Hls.isSupported()){
+      const hls=new Hls({
+        enableWorker:true,
+        lowLatencyMode:false,
+        backBufferLength:30
+      });
+      video._hlsInstance=hls;
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR,(_,data)=>{
+        if(!data?.fatal) return;
+        if(status) status.textContent='تعذر تشغيل بث HLS من المصدر';
+        try{hls.destroy();}catch{}
+        delete video._hlsInstance;
+      });
+      return true;
+    }
+    if(video.canPlayType('application/vnd.apple.mpegurl')){
+      video.src=url;
+      return true;
+    }
+    if(status) status.textContent='هذا المتصفح لا يدعم HLS';
+    return false;
+  }
+
+  video.src=url;
+  return true;
+}
+
 function startStreamPlayer(root){
-  const player = root?.closest?.('[data-stream-player]') || root?.querySelector?.('[data-stream-player]') || root;
-  if (!player) return;
+  const player=root?.closest?.('[data-stream-player]')||root?.querySelector?.('[data-stream-player]')||root;
+  if(!player) return;
 
-  const video = player.querySelector('video[data-stream-url]');
-  const status = player.querySelector('[data-stream-status]');
-  const startButton = player.querySelector('[data-stream-start]');
-  if (!video) return;
+  const video=player.querySelector('video[data-stream-url]');
+  const status=player.querySelector('[data-stream-status]');
+  const startButton=player.querySelector('[data-stream-start]');
+  if(!video) return;
 
-  const url = safeUrl(video.dataset.streamUrl);
-  const mime = video.dataset.streamMime || directVideoMime(url);
-  if (!url || !mime) {
-    if (status) status.textContent = 'رابط الفيديو غير صالح';
+  const url=safeUrl(video.dataset.streamUrl);
+  const mode=video.dataset.streamMode||player.dataset.streamMode||playerSupport(url).mode;
+  if(!url||!playerSupport(url).playable){
+    if(status) status.textContent='صيغة الفيديو غير مدعومة داخل المتصفح';
     return;
   }
 
-  if (!video.dataset.initialized) {
-    video.preload = 'auto';
-    video.src = url;
-    video.dataset.initialized = '1';
+  if(!video.dataset.initialized){
+    video.preload='auto';
+    video.dataset.initialized='1';
+    setupBufferMonitor(video,status,player);
 
-    setupBufferMonitor(video, status, player);
-
-    video.addEventListener('loadstart', () => {
-      if (status) status.textContent = 'جاري فتح الفيديو وتجهيز أول جزء...';
-    });
-
-    video.addEventListener('loadedmetadata', () => {
-      if (status) status.textContent = 'تم قراءة معلومات الفيديو • جاري تجهيز التشغيل';
-    });
-
-    video.addEventListener('playing', () => {
-      if (status) {
-        const ahead = getBufferedAhead(video);
-        status.textContent = ahead >= 5 ? ('تشغيل مستقر • مخزون ' + Math.floor(ahead) + ' ث') : 'يتم التشغيل • جاري بناء المخزون';
+    video.addEventListener('loadstart',()=>{if(status) status.textContent='جاري فتح الفيديو وتجهيز أول جزء...';});
+    video.addEventListener('loadedmetadata',()=>{if(status) status.textContent='تم قراءة معلومات الفيديو • جاري تجهيز التشغيل';});
+    video.addEventListener('playing',()=>{
+      if(status){
+        const ahead=getBufferedAhead(video);
+        status.textContent=ahead>=5?('تشغيل مستقر • مخزون '+Math.floor(ahead)+' ث'):'يتم التشغيل • جاري بناء المخزون';
       }
-      if (startButton) startButton.hidden = true;
+      if(startButton) startButton.hidden=true;
+    });
+    video.addEventListener('pause',()=>{if(!video.ended&&!video.seeking&&status) status.textContent='متوقف مؤقتاً';});
+    video.addEventListener('ended',()=>{if(status) status.textContent='انتهى الفيديو';});
+    video.addEventListener('error',()=>{
+      if(video._hlsInstance) return;
+      const code=video.error?.code;
+      const message=code===2?'مشكلة اتصال بالمصدر':code===3?'المتصفح لم يستطع فك ترميز الفيديو':code===4?'صيغة الفيديو غير مدعومة أو الرابط غير متاح':'تعذر تشغيل الفيديو من المصدر';
+      if(status) status.textContent=message+' • جرّب إعادة المحاولة';
+      if(startButton){startButton.hidden=false;startButton.textContent='إعادة المحاولة';}
     });
 
-    video.addEventListener('pause', () => {
-      if (!video.ended && !video.seeking && status) {
-        status.textContent = 'متوقف مؤقتاً';
-      }
-    });
-
-    video.addEventListener('ended', () => {
-      if (status) status.textContent = 'انتهى الفيديو';
-    });
-
-    video.addEventListener('error', () => {
-      const code = video.error?.code;
-      const message = code === 2
-        ? 'مشكلة اتصال بالمصدر'
-        : code === 3
-          ? 'المتصفح لم يستطع فك ترميز الفيديو'
-          : code === 4
-            ? 'صيغة الفيديو غير مدعومة أو الرابط غير متاح'
-            : 'تعذر تشغيل الفيديو من المصدر';
-
-      if (status) status.textContent = message + ' • جرّب إعادة المحاولة';
-      if (startButton) {
-        startButton.hidden = false;
-        startButton.textContent = 'إعادة المحاولة';
-      }
-    });
-
-    video.load();
+    if(!attachStreamSource(video,url,mode,status)){
+      if(startButton){startButton.hidden=false;startButton.textContent='غير مدعوم';}
+      return;
+    }
+    video.load?.();
   }
 
-  if (startButton) startButton.textContent = 'جاري تجهيز التشغيل...';
-
-  const playPromise = video.play();
-  if (playPromise && typeof playPromise.then === 'function') {
-    playPromise.then(() => {
-      if (startButton) startButton.hidden = true;
-    }).catch(() => {
-      if (status) status.textContent = 'اضغط تشغيل من داخل الفيديو للبدء';
-      if (startButton) {
-        startButton.hidden = false;
-        startButton.textContent = 'تشغيل الفيديو';
-      }
+  if(startButton) startButton.textContent='جاري تجهيز التشغيل...';
+  const playPromise=video.play();
+  if(playPromise&&typeof playPromise.then==='function'){
+    playPromise.then(()=>{if(startButton) startButton.hidden=true;}).catch(()=>{
+      if(status) status.textContent='اضغط تشغيل من داخل الفيديو للبدء';
+      if(startButton){startButton.hidden=false;startButton.textContent='تشغيل الفيديو';}
     });
   }
 }
 
 function stopStreamPlayers(root=document){
-  root.querySelectorAll?.('video[data-stream-url]').forEach(video => {
-    try {
-      if (video._smartBufferController?.destroy) {
-        video._smartBufferController.destroy();
-      }
+  root.querySelectorAll?.('video[data-stream-url]').forEach(video=>{
+    try{
+      if(video._smartBufferController?.destroy) video._smartBufferController.destroy();
       delete video._smartBufferController;
+      if(video._hlsInstance){
+        video._hlsInstance.destroy();
+        delete video._hlsInstance;
+      }
       video.pause();
       video.removeAttribute('src');
-      video.querySelectorAll('source').forEach(source => source.remove());
+      video.querySelectorAll('source').forEach(source=>source.remove());
       video.load();
       delete video.dataset.initialized;
-    } catch {}
+    }catch{}
   });
 }
 
-function openInlinePlayer(url, title, poster){
-  const safe = safeUrl(url);
-  const mime = directVideoMime(safe);
-  if (!safe || !mime) return;
+function openInlinePlayer(url,title,poster){
+  const safe=safeUrl(url);
+  if(!safe) return;
+  const support=playerSupport(safe);
 
-  dialogContent.innerHTML =
-    '<div class="player-view">' +
-      '<div class="player-head"><div><span class="overview-kicker">INTERNAL PLAYER</span><h3>' +
-      escapeHtml(title || 'تشغيل الفيديو') +
-      '</h3></div></div>' +
-      playerMarkup(safe, title, poster, false) +
-      '<div class="player-actions">' +
-        '<a class="mini-link" href="' + escapeAttr(safe) + '" target="_blank" rel="noopener noreferrer">فتح الرابط مباشرة</a>' +
-      '</div>' +
-      '<p class="source-note">يبدأ جلب الفيديو فقط بعد الضغط على تشغيل، ويترك للمتصفح استخدام طلبات Range/التخزين المؤقت بدل سحب الملف كاملاً مقدماً.</p>' +
+  dialogContent.innerHTML=
+    '<div class="player-view">'+
+      '<div class="player-head"><div><span class="overview-kicker">INTERNAL PLAYER</span><h3>'+
+      escapeHtml(title||'تشغيل الفيديو')+
+      '</h3></div><span class="chip">'+escapeHtml(support.format.toUpperCase())+'</span></div>'+
+      playerMarkup(safe,title,poster,false)+
+      '<div class="player-actions">'+
+        '<a class="mini-link" href="'+escapeAttr(safe)+'" target="_blank" rel="noopener noreferrer">فتح الرابط مباشرة</a>'+
+      '</div>'+
+      '<p class="source-note">'+
+        (support.mode==='hls'
+          ? 'يستخدم المشغل HLS.js عند الحاجة، مع استخدام دعم HLS الأصلي عندما يكون مناسباً.'
+          : support.playable
+            ? 'يبدأ جلب الفيديو بعد الضغط على تشغيل ويستفيد من Range والتخزين المؤقت الذي يوفره المصدر.'
+            : escapeHtml(support.reason))+
+      '</p>'+
     '</div>';
 
-  const player = dialogContent.querySelector('[data-stream-player]');
-  if (player) startStreamPlayer(player);
+  const player=dialogContent.querySelector('[data-stream-player]');
+  if(player&&support.playable) startStreamPlayer(player);
 }
+
 function asArray(value, keys){
   if (Array.isArray(value)) return value;
   for (const key of keys) if (Array.isArray(value?.[key])) return value[key];
@@ -839,7 +883,10 @@ function openMedia(id){
         '<div class="episode-item"><span>'+
         escapeHtml(ep.episode?'الحلقة '+ep.episode:ep.title)+
         '</span>'+
-        (ep.url?'<a href="'+escapeAttr(ep.url)+'" target="_blank" rel="noopener noreferrer">تشغيل</a>':'<span>بدون رابط</span>')+
+        (ep.url?(playerSupport(ep.url).playable
+          ? '<button class="episode-play" type="button" data-play-url="'+escapeAttr(ep.url)+'" data-play-title="'+escapeAttr(ep.title)+'" data-play-poster="'+escapeAttr(ep.image||item.image||'')+'">تشغيل</button>'
+          : '<a href="'+escapeAttr(ep.url)+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(streamFormat(ep.url).toUpperCase()||'فتح المصدر')+'</a>')
+        :'<span>بدون رابط</span>')+
         '</div>'
       ).join('');
       return '<section class="anime-season"><div class="file-row"><strong>الموسم '+

@@ -162,3 +162,23 @@ Base URL:
 - Metadata cache: 6 ساعات.
 - Link health cache: 30 دقيقة.
 - إذا توقف TMDb أو Jikan مؤقتاً، يرجع النظام آخر Metadata مخزنة إذا كانت متوفرة مع `stale:true`.
+
+
+## Batch sample health checks
+
+يمكن فحص عينة صغيرة من نوع وصيغة محددة بدون إرسال روابط خارجية:
+
+`GET /api/v1/media-health?sample=1&type=movie&format=mp4&limit=3`
+
+`GET /api/v1/media-health?sample=1&type=movie&format=m3u8&limit=3`
+
+`GET /api/v1/media-health?sample=1&type=episode&format=mkv&limit=3`
+
+الحد الأقصى للعينة 8 عناصر في الطلب الواحد.
+
+## Web player behavior
+
+- MP4/WebM/Ogg: تشغيل HTML5 مباشر.
+- M3U8: HLS native عندما يكون مناسباً، وإلا HLS.js v1 عبر MSE.
+- MKV: لا يتم إجبار المتصفح على تشغيله؛ يظهر خيار فتح المصدر لأن الدعم غير ثابت.
+- TS مباشر: يعرض كصيغة محدودة ويحتاج HLS/transmux أو مشغلاً خارجياً.

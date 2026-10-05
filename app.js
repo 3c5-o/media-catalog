@@ -513,6 +513,7 @@ function openInlinePlayer(url,title,poster){
       '</p>'+
     '</div>';
 
+  if(!dialog.open) dialog.showModal();
   const player=dialogContent.querySelector('[data-stream-player]');
   if(player&&support.playable) startStreamPlayer(player);
 }
@@ -1424,6 +1425,48 @@ $('#genreSelect').addEventListener('change', event => {
 loadMoreBtn.addEventListener('click', () => {
   state.visible += PAGE_SIZE;
   renderMedia();
+});
+
+grid.addEventListener('change', event => {
+  const input=event.target.closest('#xtreamJsonFile');
+  if(input?.files?.[0]) handleXtreamFile(input.files[0]);
+});
+
+grid.addEventListener('click', event => {
+  const disconnect=event.target.closest('[data-xtream-disconnect]');
+  if(disconnect){ clearXtream(); return; }
+
+  const back=event.target.closest('[data-xtream-back]');
+  if(back){
+    state.xtream.view='summary';
+    state.xtream.activeType='';
+    state.xtream.activeCategory='';
+    renderXtream();
+    return;
+  }
+
+  const category=event.target.closest('[data-xtream-category]');
+  if(category){
+    state.xtream.activeType=category.dataset.xtreamCategoryType;
+    state.xtream.activeCategory=category.dataset.xtreamCategory;
+    state.xtream.view='items';
+    renderXtream();
+    return;
+  }
+
+  const typeCard=event.target.closest('[data-xtream-type]');
+  if(typeCard){
+    state.xtream.activeType=typeCard.dataset.xtreamType;
+    state.xtream.activeCategory='all';
+    state.xtream.view='items';
+    renderXtream();
+    return;
+  }
+
+  const item=event.target.closest('[data-xtream-item-type][data-xtream-item-id]');
+  if(item){
+    openXtreamItem(item.dataset.xtreamItemType,item.dataset.xtreamItemId);
+  }
 });
 
 $('#refreshBtn').addEventListener('click', () => loadData(true));

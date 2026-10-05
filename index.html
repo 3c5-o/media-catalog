@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080b10" />
   <meta name="description" content="كتالوج موحد ومزود API للأفلام والأنمي مبني على بيانات SAMEHJA/live بصورة منظمة." />
   <title>Media Catalog</title>
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
   <header class="topbar">
@@ -25,7 +25,7 @@
       <div class="hero-copy">
         <span class="eyebrow">FULL REPOSITORY CATALOG</span>
         <h2>كل أقسام المصدر في واجهة واحدة</h2>
-        <p>الأفلام، سلاسل الأنمي وحلقاته، واجهات API العامة، معلومات مصادر Xtream، وملفات المستودع. بيانات الاتصال الحساسة لا يتم عرضها أو تحميلها في المتصفح.</p>
+        <p>الأفلام، سلاسل الأنمي وحلقاته، واجهات API العامة، وأداة Xtream للحسابات المصرح لك باستخدامها. بيانات Xtream التي تختارها من جهازك تبقى في ذاكرة الصفحة ولا تُحفظ.</p>
       </div>
       <div class="stats" aria-live="polite">
         <div class="stat"><strong id="movieCount">0</strong><span>أفلام</span></div>
@@ -76,7 +76,7 @@
         <span class="overview-kicker">XTREAM</span>
         <strong>6</strong>
         <h3>مصادر Xtream</h3>
-        <p>إظهار وجود ملفات الإعداد بالمصدر مع إخفاء بيانات الدخول.</p>
+        <p>فحص حساب Xtream مصرح لك به من ملف JSON، مع عرض Live / Movies / Series والأقسام وعدد العناصر.</p>
       </article>
       <article class="overview-card" data-jump="files">
         <span class="overview-kicker">FILES</span>
@@ -124,10 +124,11 @@
   </dialog>
 
   <footer class="footer">
-    <span>واجهة قراءة وتنظيم للمصدر العام — بيانات الدخول الحساسة غير معروضة ولا يتم استخدامها.</span>
+    <span>Media Catalog — أداة Xtream تعمل فقط مع حساب تملكه أو لديك إذن باستخدامه، ولا تحفظ بيانات الدخول.</span>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-  <script src="app.js?v=12" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js"></script>
+  <script src="app.js?v=13" defer></script>
 </body>
 </html>

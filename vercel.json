@@ -77,6 +77,18 @@
     {
       "source": "/anime-series-api",
       "destination": "/api/anime-catalog"
+    },
+    {
+      "source": "/api/movies",
+      "destination": "/api/movies-full"
+    },
+    {
+      "source": "/api/anime",
+      "destination": "/api/anime-catalog"
+    },
+    {
+      "source": "/api/series",
+      "destination": "/api/anime-catalog"
     }
   ],
   "headers": [

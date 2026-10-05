@@ -428,7 +428,7 @@ function startStreamPlayer(root){
       if(startButton){startButton.hidden=false;startButton.textContent='غير مدعوم';}
       return;
     }
-    video.load?.();
+    if(mode!=='hls') video.load?.();
   }
 
   if(startButton) startButton.textContent='جاري تجهيز التشغيل...';

@@ -2,13 +2,25 @@ const { loadAll, send, requireGet } = require("../lib/provider");
 function summarize(items){
   const formats={};
   const support={};
+  let recognized=0, browserPlayable=0, issues=0;
   for(const item of items){
-    const f=item.playback?.format||"unknown";
-    const s=item.playback?.browser_support||"unknown";
+    const p=item.playback||{};
+    const f=p.format||"unknown";
+    const s=p.browser_support||"unknown";
     formats[f]=(formats[f]||0)+1;
     support[s]=(support[s]||0)+1;
+    if(p.recognized_media) recognized++;
+    if(p.browser_playable) browserPlayable++;
+    if(p.issue) issues++;
   }
-  return {total:items.length,formats,browser_support:support};
+  return {
+    total:items.length,
+    recognized_media:recognized,
+    browser_playable:browserPlayable,
+    source_issues:issues,
+    formats,
+    browser_support:support
+  };
 }
 module.exports=async function handler(req,res){
   if(!requireGet(req,res)) return;

@@ -1032,19 +1032,361 @@ function renderApi(){
   emptyState.hidden = true;
 }
 
+
+function normalizeXtreamConfig(value){
+  const input=value&&typeof value==='object'?value:{};
+  let server=str(input.server||input.url||input.host||input.base_url||input.baseUrl);
+  const username=str(input.username||input.user);
+  const password=str(input.password||input.pass);
+  if(server&&!/^https?:\/\//i.test(server)) server='http://'+server;
+  const safe=safeUrl(server);
+  if(!safe||!username||!password) throw new Error('ملف Xtream يجب أن يحتوي server و username و password.');
+  const parsed=new URL(safe);
+  const cleanPath=parsed.pathname.replace(/\/player_api\.php\/?$/i,'').replace(/\/+$/,'');
+  parsed.pathname=cleanPath||'/';
+  parsed.search='';
+  parsed.hash='';
+  const normalized=parsed.href.replace(/\/+$/,'');
+  if(location.protocol==='https:'&&parsed.protocol==='http:'){
+    throw new Error('هذا الخادم يعمل عبر HTTP فقط، والمتصفح يمنع الاتصال به من موقع HTTPS. استخدم خادماً يدعم HTTPS.');
+  }
+  return {server:normalized,username,password};
+}
+
+function xtreamApiUrl(action='',extra={},profile=state.xtream.profile){
+  if(!profile) throw new Error('لا يوجد حساب Xtream محمل.');
+  const url=new URL(profile.server.replace(/\/+$/,'')+'/player_api.php');
+  url.searchParams.set('username',profile.username);
+  url.searchParams.set('password',profile.password);
+  if(action) url.searchParams.set('action',action);
+  Object.entries(extra||{}).forEach(([key,value])=>{
+    if(value!==undefined&&value!==null&&String(value)!=='') url.searchParams.set(key,String(value));
+  });
+  return url.href;
+}
+
+async function xtreamFetch(action='',extra={},profile=state.xtream.profile){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),25000);
+  try{
+    const response=await fetch(xtreamApiUrl(action,extra,profile),{
+      cache:'no-store',
+      credentials:'omit',
+      signal:controller.signal,
+      headers:{Accept:'application/json'}
+    });
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    return await response.json();
+  }catch(error){
+    if(error?.name==='AbortError') throw new Error('انتهت مهلة الاتصال بخادم Xtream.');
+    throw error;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+async function xtreamTry(action,profile){
+  try{
+    const value=await xtreamFetch(action,{},profile);
+    return Array.isArray(value)?value:[];
+  }catch{
+    return [];
+  }
+}
+
+function xtreamCatalogType(type,categories,items){
+  const counts=new Map();
+  for(const item of items){
+    const id=str(item?.category_id)||'0';
+    counts.set(id,(counts.get(id)||0)+1);
+  }
+  const normalized=(Array.isArray(categories)?categories:[]).map((category,index)=>({
+    id:str(category?.category_id)||String(index+1),
+    name:str(category?.category_name)||('قسم '+(index+1)),
+    count:counts.get(str(category?.category_id)||String(index+1))||0
+  }));
+  const known=new Set(normalized.map(category=>category.id));
+  for(const [id,count] of counts){
+    if(!known.has(id)) normalized.push({id,name:id==='0'?'غير مصنف':'قسم '+id,count});
+  }
+  normalized.sort((x,y)=>y.count-x.count||x.name.localeCompare(y.name,'ar'));
+  return {type,total:items.length,categories:normalized,items};
+}
+
+function xtreamTypeLabel(type){
+  if(type==='live') return 'البث المباشر';
+  if(type==='movie') return 'الأفلام';
+  return 'المسلسلات';
+}
+
+function xtreamTypeShort(type){
+  if(type==='live') return 'LIVE';
+  if(type==='movie') return 'MOVIES';
+  return 'SERIES';
+}
+
+async function loadXtreamProfile(config){
+  if(state.xtream.busy) return;
+  state.xtream.busy=true;
+  state.xtream.message='جاري فحص حساب Xtream...';
+  renderXtream();
+  try{
+    const profile=normalizeXtreamConfig(config);
+    const auth=await xtreamFetch('',{},profile);
+    const userInfo=auth?.user_info||{};
+    const authenticated=String(userInfo.auth??'1')!=='0'&&!/disabled|banned|expired/i.test(str(userInfo.status));
+    if(!authenticated) throw new Error('الحساب غير فعال أو بيانات الدخول غير صحيحة.');
+
+    state.xtream.profile=profile;
+    state.xtream.auth={
+      status:str(userInfo.status)||'Active',
+      expDate:str(userInfo.exp_date),
+      maxConnections:str(userInfo.max_connections),
+      activeConnections:str(userInfo.active_cons)
+    };
+    state.xtream.message='جاري قراءة الأقسام والمحتوى...';
+    renderXtream();
+
+    const results=await Promise.all([
+      xtreamTry('get_live_categories',profile),
+      xtreamTry('get_live_streams',profile),
+      xtreamTry('get_vod_categories',profile),
+      xtreamTry('get_vod_streams',profile),
+      xtreamTry('get_series_categories',profile),
+      xtreamTry('get_series',profile)
+    ]);
+
+    state.xtream.catalog={
+      live:xtreamCatalogType('live',results[0],results[1]),
+      movie:xtreamCatalogType('movie',results[2],results[3]),
+      series:xtreamCatalogType('series',results[4],results[5])
+    };
+    state.xtream.view='summary';
+    state.xtream.activeType='';
+    state.xtream.activeCategory='';
+    state.xtream.message='تم الاتصال وقراءة الأقسام بنجاح.';
+    renderXtream();
+  }catch(error){
+    state.xtream.profile=null;
+    state.xtream.auth=null;
+    state.xtream.catalog=null;
+    state.xtream.message=error?.message||'تعذر الاتصال بحساب Xtream.';
+    renderXtream();
+  }finally{
+    state.xtream.busy=false;
+  }
+}
+
+async function handleXtreamFile(file){
+  if(!file) return;
+  if(file.size>1024*1024) {
+    state.xtream.message='ملف JSON أكبر من الحد المطلوب.';
+    renderXtream();
+    return;
+  }
+  try{
+    const textValue=await file.text();
+    const config=JSON.parse(textValue);
+    await loadXtreamProfile(config);
+  }catch(error){
+    state.xtream.message=error instanceof SyntaxError?'ملف JSON غير صالح.':(error?.message||'تعذر قراءة الملف.');
+    renderXtream();
+  }
+}
+
+function clearXtream(){
+  stopStreamPlayers(document);
+  state.xtream={profile:null,auth:null,catalog:null,view:'summary',activeType:'',activeCategory:'',seriesInfo:null,busy:false,message:'تم قطع الاتصال ومسح بيانات الحساب من الذاكرة.'};
+  renderXtream();
+}
+
+function xtreamSummaryCard(type,entry){
+  return '<button class="xtream-summary-card" type="button" data-xtream-type="'+type+'">'+
+    '<span>'+xtreamTypeShort(type)+'</span>'+
+    '<strong>'+formatNumber(entry?.total||0)+'</strong>'+
+    '<b>'+escapeHtml(xtreamTypeLabel(type))+'</b>'+
+    '<small>'+formatNumber(entry?.categories?.length||0)+' قسم</small>'+
+  '</button>';
+}
+
+function xtreamCategoryGroup(type,entry){
+  return '<section class="xtream-category-group">'+
+    '<div class="xtream-group-head"><div><span>'+xtreamTypeShort(type)+'</span><h3>'+escapeHtml(xtreamTypeLabel(type))+'</h3></div><strong>'+formatNumber(entry?.total||0)+'</strong></div>'+
+    '<div class="xtream-category-list">'+
+      (entry?.categories||[]).map(category=>
+        '<button type="button" class="xtream-category" data-xtream-category="'+escapeAttr(category.id)+'" data-xtream-category-type="'+type+'">'+
+          '<span>'+escapeHtml(category.name)+'</span><b>'+formatNumber(category.count)+'</b>'+
+        '</button>'
+      ).join('')+
+    '</div>'+
+  '</section>';
+}
+
+function xtreamItemImage(item,type){
+  const raw=type==='series'?(item?.cover||item?.stream_icon):(item?.stream_icon||item?.cover||item?.movie_image);
+  const url=safeUrl(raw);
+  return url
+    ? '<img src="'+escapeAttr(url)+'" alt="" loading="lazy" referrerpolicy="no-referrer">'
+    : '<div class="poster-fallback">NO IMAGE</div>';
+}
+
+function renderXtreamItems(){
+  const catalog=state.xtream.catalog?.[state.xtream.activeType];
+  if(!catalog){state.xtream.view='summary';return renderXtream();}
+  const categoryId=state.xtream.activeCategory;
+  const items=categoryId==='all'||!categoryId
+    ? catalog.items
+    : catalog.items.filter(item=>str(item?.category_id)===categoryId);
+  const visible=items.slice(0,300);
+  grid.className='xtream-browser';
+  grid.innerHTML=
+    '<div class="xtream-browser-head">'+
+      '<button class="mini-link xtream-back" type="button" data-xtream-back>رجوع إلى الأقسام</button>'+
+      '<div><span class="overview-kicker">'+xtreamTypeShort(state.xtream.activeType)+'</span><h3>'+escapeHtml(xtreamTypeLabel(state.xtream.activeType))+'</h3><p>'+formatNumber(items.length)+' عنصر في هذا القسم</p></div>'+
+    '</div>'+
+    '<div class="xtream-items-grid">'+visible.map(item=>{
+      const id=state.xtream.activeType==='series'?str(item?.series_id):str(item?.stream_id);
+      const name=str(item?.name)||'بدون اسم';
+      const meta=state.xtream.activeType==='live'
+        ? 'قناة مباشرة'
+        : state.xtream.activeType==='movie'
+          ? (str(item?.rating_5based||item?.rating)?'تقييم '+escapeHtml(str(item?.rating_5based||item?.rating)):'فيلم')
+          : 'مسلسل';
+      return '<button class="xtream-item-card" type="button" data-xtream-item-type="'+state.xtream.activeType+'" data-xtream-item-id="'+escapeAttr(id)+'">'+
+        '<div class="xtream-poster">'+xtreamItemImage(item,state.xtream.activeType)+'</div>'+
+        '<div class="xtream-item-copy"><b>'+escapeHtml(name)+'</b><small>'+meta+'</small></div>'+
+      '</button>';
+    }).join('')+'</div>'+
+    (items.length>visible.length?'<div class="xtream-limit-note">يعرض أول '+formatNumber(visible.length)+' من '+formatNumber(items.length)+' عنصر للمحافظة على سرعة الصفحة.</div>':'');
+  statusText.textContent=formatNumber(items.length)+' عنصر';
+  lastUpdated.textContent='Xtream • البيانات في ذاكرة الصفحة فقط';
+}
+
 function renderXtream(){
-  grid.className = 'grid';
-  grid.innerHTML = XTREAM_SOURCES.map((name,index) =>
-    '<article class="info-card warning sensitive">' +
-      '<div class="info-icon">X' + (index + 1) + '</div>' +
-      '<h3>' + escapeHtml(name) + '</h3>' +
-      '<p>إعداد Xtream خارجي موجود في المستودع الأصلي. يحتوي حقول <code>server</code> و<code>username</code> و<code>password</code>.</p>' +
-      '<p>لأسباب أمنية، هذه الواجهة لا تجلب ولا تعرض ولا تستخدم بيانات الدخول المنشورة.</p>' +
-      '<div class="info-meta">المصدر مسجّل فقط كقسم متاح في المستودع</div>' +
-    '</article>'
-  ).join('');
-  statusText.textContent = formatNumber(XTREAM_SOURCES.length) + ' ملفات إعداد Xtream';
-  lastUpdated.textContent = 'بيانات الدخول مخفية وغير مستخدمة';
+  filters.hidden=true;
+  loadMoreBtn.hidden=true;
+  emptyState.hidden=true;
+
+  if(state.xtream.view==='items'&&state.xtream.catalog){
+    renderXtreamItems();
+    return;
+  }
+
+  grid.className='xtream-tool';
+  const message=state.xtream.message
+    ? '<div class="xtream-message '+(state.xtream.catalog?'success':'')+'">'+escapeHtml(state.xtream.message)+'</div>'
+    : '';
+
+  if(!state.xtream.catalog){
+    grid.innerHTML=
+      '<section class="xtream-connect-card">'+
+        '<div class="xtream-connect-icon">XT</div>'+
+        '<div class="xtream-connect-copy"><span class="overview-kicker">AUTHORIZED XTREAM</span><h3>فحص وتشغيل حساب Xtream</h3>'+
+          '<p>اختر ملف JSON لحساب تملكه أو لديك إذن باستخدامه. يجب أن يحتوي الحقول <code>server</code> و<code>username</code> و<code>password</code>.</p>'+
+          '<p class="xtream-security">الملف يُقرأ داخل المتصفح فقط، ولا يتم حفظ بيانات الدخول في التخزين المحلي.</p>'+
+        '</div>'+
+        '<label class="xtream-file-button"><input id="xtreamJsonFile" type="file" accept=".json,application/json"><span>اختيار ملف JSON</span></label>'+
+      '</section>'+
+      message+
+      '<section class="xtream-source-note"><strong>ملفات المصدر المعروفة</strong><p>'+XTREAM_SOURCES.map(escapeHtml).join(' • ')+'</p><small>لا يتم فتح أو استخدام بيانات الدخول المنشورة في المستودع تلقائياً.</small></section>';
+    statusText.textContent=state.xtream.busy?'جاري فحص Xtream...':'اختر ملف JSON مصرحاً لك باستخدامه';
+    lastUpdated.textContent='لا يتم حفظ بيانات الدخول';
+    return;
+  }
+
+  const auth=state.xtream.auth||{};
+  grid.innerHTML=
+    '<div class="xtream-session-head">'+
+      '<div><span class="overview-kicker">XTREAM CONNECTED</span><h3>الحساب متصل</h3><p>الحالة: '+escapeHtml(auth.status||'Active')+
+      (auth.activeConnections?' • اتصالات حالية: '+escapeHtml(auth.activeConnections):'')+
+      (auth.maxConnections?' / '+escapeHtml(auth.maxConnections):'')+'</p></div>'+
+      '<button class="mini-link xtream-disconnect" type="button" data-xtream-disconnect>قطع الاتصال</button>'+
+    '</div>'+
+    message+
+    '<div class="xtream-summary-grid">'+
+      xtreamSummaryCard('live',state.xtream.catalog.live)+
+      xtreamSummaryCard('movie',state.xtream.catalog.movie)+
+      xtreamSummaryCard('series',state.xtream.catalog.series)+
+    '</div>'+
+    '<div class="xtream-category-columns">'+
+      xtreamCategoryGroup('live',state.xtream.catalog.live)+
+      xtreamCategoryGroup('movie',state.xtream.catalog.movie)+
+      xtreamCategoryGroup('series',state.xtream.catalog.series)+
+    '</div>';
+  statusText.textContent=
+    'Live '+formatNumber(state.xtream.catalog.live.total)+
+    ' • Movies '+formatNumber(state.xtream.catalog.movie.total)+
+    ' • Series '+formatNumber(state.xtream.catalog.series.total);
+  lastUpdated.textContent='Xtream • لا يتم حفظ بيانات الحساب';
+}
+
+function xtreamFindItem(type,id){
+  return state.xtream.catalog?.[type]?.items?.find(item=>str(type==='series'?item?.series_id:item?.stream_id)===str(id))||null;
+}
+
+function xtreamPlaybackUrl(type,item){
+  const profile=state.xtream.profile;
+  if(!profile||!item) return '';
+  const base=profile.server.replace(/\/+$/,'');
+  const user=encodeURIComponent(profile.username);
+  const pass=encodeURIComponent(profile.password);
+  if(type==='live'){
+    const ext=str(item?.container_extension)||'m3u8';
+    return base+'/live/'+user+'/'+pass+'/'+encodeURIComponent(item.stream_id)+'.'+ext;
+  }
+  if(type==='movie'){
+    const ext=str(item?.container_extension)||'mp4';
+    return base+'/movie/'+user+'/'+pass+'/'+encodeURIComponent(item.stream_id)+'.'+ext;
+  }
+  return '';
+}
+
+async function openXtreamSeries(item){
+  if(!item||!state.xtream.profile) return;
+  statusText.textContent='جاري تحميل حلقات المسلسل...';
+  try{
+    const info=await xtreamFetch('get_series_info',{series_id:item.series_id});
+    state.xtream.seriesInfo=info;
+    const seasons=info?.episodes&&typeof info.episodes==='object'?info.episodes:{};
+    const profile=state.xtream.profile;
+    const base=profile.server.replace(/\/+$/,'');
+    const user=encodeURIComponent(profile.username);
+    const pass=encodeURIComponent(profile.password);
+    const cover=safeUrl(info?.info?.cover||item?.cover||'');
+    const blocks=Object.entries(seasons).sort((a,b)=>Number(a[0])-Number(b[0])).map(([seasonNumber,episodes])=>{
+      const list=Array.isArray(episodes)?episodes:[];
+      return '<section class="xtream-season"><div class="file-row"><strong>الموسم '+escapeHtml(seasonNumber)+'</strong><span class="file-type">'+formatNumber(list.length)+' حلقة</span></div>'+
+        '<div class="episode-list">'+list.map(ep=>{
+          const ext=str(ep?.container_extension)||'mp4';
+          const url=base+'/series/'+user+'/'+pass+'/'+encodeURIComponent(ep?.id)+'.'+ext;
+          const title=str(ep?.title)||('الحلقة '+str(ep?.episode_num||ep?.id));
+          return '<div class="episode-item"><span>'+escapeHtml(title)+'</span>'+
+            '<button class="episode-play" type="button" data-play-url="'+escapeAttr(url)+'" data-play-title="'+escapeAttr(str(item?.name)+' — '+title)+'" data-play-poster="'+escapeAttr(cover)+'">تشغيل</button></div>';
+        }).join('')+'</div></section>';
+    }).join('');
+
+    dialogContent.innerHTML=
+      '<div class="player-view xtream-series-view">'+
+        '<div class="player-head"><div><span class="overview-kicker">XTREAM SERIES</span><h3>'+escapeHtml(str(info?.info?.name||item?.name||'مسلسل'))+'</h3></div></div>'+
+        (cover?'<img class="xtream-series-cover" src="'+escapeAttr(cover)+'" alt="" referrerpolicy="no-referrer">':'')+
+        (blocks||'<div class="error-box">لا توجد حلقات متاحة.</div>')+
+      '</div>';
+    dialog.showModal();
+  }catch(error){
+    state.xtream.message='تعذر تحميل تفاصيل المسلسل: '+(error?.message||'خطأ اتصال');
+    renderXtream();
+  }
+}
+
+function openXtreamItem(type,id){
+  const item=xtreamFindItem(type,id);
+  if(!item) return;
+  if(type==='series'){
+    openXtreamSeries(item);
+    return;
+  }
+  const url=xtreamPlaybackUrl(type,item);
+  openInlinePlayer(url,str(item?.name)||xtreamTypeLabel(type),safeUrl(item?.stream_icon||item?.cover||''));
 }
 
 function renderFiles(){

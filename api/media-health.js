@@ -18,6 +18,7 @@ module.exports=async function handler(req,res){
     const sample=String(q.sample||"")==="1";
     const format=String(q.format||"").toLowerCase();
     const limit=clamp(q.limit,3,1,8);
+    const fresh=String(q.fresh||"")==="1";
 
     if(!["movie","episode"].includes(type)){
       return send(res,400,{ok:false,error:"valid_type_required",allowed_types:["movie","episode"]},0);
@@ -27,14 +28,19 @@ module.exports=async function handler(req,res){
     const source=type==="movie"?all.movies:all.episodes;
 
     if(sample){
-      const candidates=source.filter(item=>matchesFormat(item,format)).slice(0,limit);
+      const available=source.filter(item=>matchesFormat(item,format));
+      // Distribute samples across the catalog; the first page alone is not representative.
+      const candidates=Array.from({length:Math.min(limit,available.length)},(_,i)=>
+        available[Math.floor(i*available.length/Math.min(limit,available.length))]
+      );
       const checks=await Promise.all(candidates.map(async item=>({
         id:item.id,
         title:item.title,
         playback:item.playback,
-        health:await checkUrlHealth(item.video)
+        health:await checkUrlHealth(item.video,{fresh})
       })));
       const reachable=checks.filter(x=>x.health?.reachable).length;
+      const browserReady=checks.filter(x=>x.health?.playback_ready).length;
       return send(res,200,{
         ok:true,
         api_version:"v1",
@@ -45,6 +51,9 @@ module.exports=async function handler(req,res){
         checked:checks.length,
         reachable,
         unreachable:checks.length-reachable,
+        browser_ready:browserReady,
+        browser_not_ready:checks.length-browserReady,
+        note:"HEAD success is not enough. This endpoint probes a small GET range and inspects CORS, format and video bytes.",
         data:checks
       },30);
     }
@@ -55,7 +64,7 @@ module.exports=async function handler(req,res){
 
     const item=itemById(source,id);
     if(!item) return send(res,404,{ok:false,error:type+"_not_found"},60);
-    const health=await checkUrlHealth(item.video);
+    const health=await checkUrlHealth(item.video,{fresh});
     return send(res,200,{
       ok:true,
       api_version:"v1",

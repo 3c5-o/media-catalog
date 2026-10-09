@@ -58,13 +58,24 @@ async function boundedMediaGet(url) {
   let reader;
   try{
     const r=await fetch(url,{method:"GET",headers:{Range:"bytes=0-2047",Origin:"https://3c5-o.github.io"},redirect:"follow",signal:controller.signal});
-    let data="";
+    let data="",signature="empty";
     if(r.body?.getReader){
       reader=r.body.getReader();
       const first=await reader.read();
-      if(first.value)data=Buffer.from(first.value.subarray(0,2048)).toString("utf8");
+      if(first.value){
+        const bytes=Buffer.from(first.value.subarray(0,2048));
+        data=bytes.toString("utf8");
+        if(bytes.subarray(0,8).toString("hex")==="89504e470d0a1a0a")signature="png_image";
+        else if(bytes[0]===0xff&&bytes[1]===0xd8)signature="jpeg_image";
+        else if(bytes[0]===0x47&&(bytes.length<189||bytes[188]===0x47))signature="mpeg_ts";
+        else if(bytes.subarray(4,8).toString("utf8")==="ftyp")signature="mp4_iso_bmff";
+        else if(bytes.subarray(0,4).toString("hex")==="1a45dfa3")signature="matroska";
+        else if(data.startsWith("#EXTM3U"))signature="hls_playlist";
+        else if(/^\\s*(?:<html|<!doctype html)/i.test(data))signature="html";
+        else signature="unknown_or_encrypted";
+      }
     }
-    return {status:r.status,cors:r.headers.get("access-control-allow-origin")||"",type:r.headers.get("content-type")||"",data};
+    return {status:r.status,cors:r.headers.get("access-control-allow-origin")||"",type:r.headers.get("content-type")||"",data,signature};
   }finally{
     if(reader){try{await reader.cancel();}catch{}}
     clearTimeout(t);
@@ -80,10 +91,10 @@ async function inspectHlsChildren(url) {
       const response=await boundedMediaGet(current);
       const cors=response.cors==="*"||response.cors==="https://3c5-o.github.io";
       const manifest=response.data.replace(/^\uFEFF/,"").startsWith("#EXTM3U");
-      const step={depth,kind:depth===0?"manifest":manifest?"playlist":"segment",http_status:response.status,cors_allowed:cors,content_type:response.type.slice(0,48),manifest};
+      const step={depth,kind:depth===0?"manifest":manifest?"playlist":"segment",http_status:response.status,cors_allowed: cors,content_type:response.type.slice(0,48),manifest,signature:response.signature};
       steps.push(step);
       if(![200,206].includes(response.status)||!cors)return {ok:false,steps,issue:"child_http_or_cors_failed"};
-      if(!manifest)return {ok:depth>0,steps,issue:depth===0?"invalid_master_manifest":null};
+      if(!manifest)return {ok:depth>0 && ["mpeg_ts","mp4_iso_bmff"].includes(response.signature),steps,issue:depth===0?"invalid_master_manifest":(["mpeg_ts","mp4_iso_bmff"].includes(response.signature)?null:"child_media_magic_unverified")};
       const lines=response.data.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
       const refs=lines.filter(x=>!x.startsWith("#"));
       const child=refs[0];

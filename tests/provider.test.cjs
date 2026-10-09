@@ -64,8 +64,13 @@ test("CORS failure and HTTP 403 are visible instead of reporting working video",
     global.fetch=async()=>mockVideo(Buffer.from("\x00\x00\x00\x18ftypisom"),{cors:""});
     const noCors=await provider.checkUrlHealth("https://media.example/nocors.mp4",{fresh:true});
     assert.equal(noCors.reachable,true);
-    assert.equal(noCors.playback_ready,false);
-    assert.ok(noCors.issues.includes("cors_not_confirmed_for_browser"));
+    assert.equal(noCors.playback_ready,true,"HTML5 MP4 does not require ACAO on a simple video src");
+    assert.equal(noCors.cors_required_for_browser,false);
+    assert.equal(noCors.issues.includes("cors_not_confirmed_for_js_player"),false);
+    global.fetch=async()=>mockVideo("#EXTM3U\n#EXT-X-ENDLIST\n",{status:200,type:"application/vnd.apple.mpegurl",cors:"",range:""});
+    const hlsWithoutCors=await provider.checkUrlHealth("https://media.example/no-cors.m3u8",{fresh:true});
+    assert.equal(hlsWithoutCors.playback_ready,false,"HLS.js fetch requires cross-origin access");
+    assert.ok(hlsWithoutCors.issues.includes("cors_not_confirmed_for_js_player"));
     global.fetch=async()=>new Response("Forbidden",{status:403});
     const blocked=await provider.checkUrlHealth("https://media.example/blocked.mp4",{fresh:true});
     assert.equal(blocked.reachable,false);

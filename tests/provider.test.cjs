@@ -32,6 +32,10 @@ test("GET range must actually return video bytes, not a successful HEAD or HTML 
     const wrong=await provider.checkUrlHealth("https://media.example/error.mp4",{fresh:true});
     assert.equal(wrong.reachable,false);
     assert.equal(wrong.issues.includes("html_instead_of_video"),true);
+    global.fetch=async()=>mockVideo('{"error":"not found"}',{status:200,type:"application/json",range:""});
+    const jsonError=await provider.checkUrlHealth("https://media.example/json-error.mp4",{fresh:true});
+    assert.equal(jsonError.reachable,false);
+    assert.equal(jsonError.issues.includes("json_or_error_document_instead_of_video"),true);
   }finally{global.fetch=original;}
 });
 

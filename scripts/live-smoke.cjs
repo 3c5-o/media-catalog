@@ -111,6 +111,20 @@ async function namedMovie(title) {
     const listing=await getJson("/api/v1/movies?q="+encodeURIComponent(title)+"&page=1&limit=20");
     const entries=(listing.data?.data||[]).filter(item=>String(item.title||"").toLowerCase()===title.toLowerCase()).slice(0,2);
     if(listing.status!==200 || !entries.length) throw new Error("movie_not_found_in_api");
+    // Verify alternate candidate selection without changing the published movie record.
+    if(entries[0]?.id){
+      const r=await getJson("/api/v1/media-health?type=movie&id="+encodeURIComponent(entries[0].id)+"&alternates=1&fresh=1",60000);
+      const options=r.data?.candidates||[];
+      console.log("named_source_candidates="+JSON.stringify({
+        title,total:options.length,
+        formats:options.map(x=>x.format),
+        initial_byte_candidates:options.filter(x=>x.health?.playback_ready===true).length,
+        best_available:Boolean(r.data?.playable_candidate_id),
+        verified_full_playback:r.data?.verified_full_playback===true,
+        failures:options.filter(x=>!x.health?.playback_ready).map(x=>({format:x.format,issues:x.health?.issues||[]}))
+      }));
+      summary.push("| "+name+" sources | "+r.status+" | "+options.length+" candidates, "+options.filter(x=>x.health?.playback_ready).length+" byte-probe ready |");
+    }
     for(const [index,item] of entries.entries()){
       const r=await getJson("/api/v1/media-health?type=movie&id="+encodeURIComponent(item.id)+"&fresh=1"+(item.playback?.format==="m3u8"?"&deep=1":""),45000);
       const h=r.data?.health||{};

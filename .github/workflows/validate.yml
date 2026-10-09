@@ -1,0 +1,25 @@
+name: Validate Media Catalog provider
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check provider and API syntax
+        run: |
+          node --check lib/provider.js
+          for file in api/*.js; do node --check "$file"; done
+          node --check app.js
+      - name: Run playback and cache regression tests
+        run: node --test tests/*.test.cjs

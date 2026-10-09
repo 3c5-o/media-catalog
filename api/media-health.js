@@ -19,6 +19,8 @@ module.exports=async function handler(req,res){
     const format=String(q.format||"").toLowerCase();
     const limit=clamp(q.limit,3,1,8);
     const fresh=String(q.fresh||"")==="1";
+    // Deep HLS inspection is intentionally limited to single-item checks.
+    const deep=String(q.deep||"")==="1" && !sample;
 
     if(!["movie","episode"].includes(type)){
       return send(res,400,{ok:false,error:"valid_type_required",allowed_types:["movie","episode"]},0);
@@ -64,7 +66,7 @@ module.exports=async function handler(req,res){
 
     const item=itemById(source,id);
     if(!item) return send(res,404,{ok:false,error:type+"_not_found"},60);
-    const health=await checkUrlHealth(item.video,{fresh});
+    const health=await checkUrlHealth(item.video,{fresh,deep});
     return send(res,200,{
       ok:true,
       api_version:"v1",
@@ -72,6 +74,7 @@ module.exports=async function handler(req,res){
       id:item.id,
       title:item.title,
       playback:item.playback,
+      inspection:deep?"hls_first_child":"initial_media_bytes",
       health
     },60);
   }catch(e){

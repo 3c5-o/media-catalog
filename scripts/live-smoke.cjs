@@ -50,6 +50,54 @@ async function probe(name,path,required=true) {
   }
 }
 
+
+async function namedMovie(title) {
+  const name="title:"+title;
+  try {
+    const listing=await getJson("/api/v1/movies?q="+encodeURIComponent(title)+"&page=1&limit=20");
+    const entries=(listing.data?.data||[]).filter(item=>String(item.title||"").toLowerCase()===title.toLowerCase()).slice(0,2);
+    if(listing.status!==200 || !entries.length) throw new Error("movie_not_found_in_api");
+    for(const [index,item] of entries.entries()){
+      const r=await getJson("/api/v1/media-health?type=movie&id="+encodeURIComponent(item.id)+"&fresh=1",45000);
+      const h=r.data?.health||{};
+      console.log("named_source_outcome="+JSON.stringify({
+        title,index:index+1,format:item.playback?.format||"unknown",
+        reachable:h.reachable===true,browser_ready:h.playback_ready===true,
+        http_status:h.status||0,issues:h.issues||[h.error||"unknown"]
+      }));
+      summary.push("| "+name+" #"+(index+1)+" | "+(h.status||r.status)+" | "+(h.playback_ready?"browser candidate":h.reachable?"server reachable only":"source unavailable")+" |");
+    }
+  }catch(error){
+    console.log("named_source_error="+JSON.stringify({title,error:String(error?.message||error).slice(0,160)}));
+    summary.push("| "+name+" | - | Unable to verify |");
+  }
+}
+
+async function namedAnimeEpisode() {
+  const title="Attack on Titan";
+  try {
+    const listing=await getJson("/api/v1/anime?q="+encodeURIComponent(title)+"&page=1&limit=30");
+    const matches=listing.data?.data||[];
+    const candidate=matches.find(x=>String(x.title||"").trim().toLowerCase()===title.toLowerCase())||matches.find(x=>String(x.title||"").toLowerCase().includes(title.toLowerCase()));
+    if(!candidate) throw new Error("anime_title_missing");
+    const detail=await getJson("/api/v1/anime/"+encodeURIComponent(candidate.id)+"?enrich=0");
+    const seasons=detail.data?.data?.seasons||[];
+    const season=seasons.find(x=>Number(x.season)===1)||seasons[0];
+    const episode=season?.episodes?.find(x=>Number(x.episode)===1)||season?.episodes?.[0];
+    if(!episode?.id) throw new Error("anime_episode_missing");
+    const h=(await getJson("/api/v1/media-health?type=episode&id="+encodeURIComponent(episode.id)+"&fresh=1",45000)).data?.health||{};
+    console.log("named_episode_outcome="+JSON.stringify({
+      title,season:season.season,episode:episode.episode,format:episode.playback?.format||"unknown",
+      reachable:h.reachable===true,browser_ready:h.playback_ready===true,
+      http_status:h.status||0,issues:h.issues||[h.error||"unknown"]
+    }));
+    summary.push("| Attack on Titan S1 Ep1 | "+(h.status||"-")+" | "+(h.playback_ready?"browser candidate":h.reachable?"server reachable only":"source unavailable")+" |");
+  }catch(error){
+    console.log("named_episode_error="+String(error?.message||error).slice(0,150));
+    summary.push("| Attack on Titan S1 Ep1 | - | Unable to verify |");
+  }
+}
+
 (async()=>{
   await probe("health","/api/v1/health");
   await probe("formats","/api/v1/formats");
@@ -59,6 +107,9 @@ async function probe(name,path,required=true) {
   await probe("sample:movie:m3u8","/api/v1/media-health?type=movie&sample=1&format=m3u8&limit=2");
   await probe("sample:movie:ts","/api/v1/media-health?type=movie&sample=1&format=ts&limit=1");
   await probe("sample:episode:mkv","/api/v1/media-health?type=episode&sample=1&format=mkv&limit=2");
+  await namedMovie("Speed Faster");
+  await namedMovie("Sinners");
+  await namedAnimeEpisode();
 
   summary.push("", "**Caveat:** Live samples are limited and do not certify an entire video or every episode. A successful API response does not mean all videos are playable.");
   if(process.env.GITHUB_STEP_SUMMARY)fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,summary.join("\n")+"\n");

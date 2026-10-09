@@ -51,6 +51,49 @@ async function probe(name,path,required=true) {
 }
 
 
+
+async function boundedMediaGet(url) {
+  const controller=new AbortController();
+  const t=setTimeout(()=>controller.abort(),9000);
+  let reader;
+  try{
+    const r=await fetch(url,{method:"GET",headers:{Range:"bytes=0-2047",Origin:"https://3c5-o.github.io"},redirect:"follow",signal:controller.signal});
+    let data="";
+    if(r.body?.getReader){
+      reader=r.body.getReader();
+      const first=await reader.read();
+      if(first.value)data=Buffer.from(first.value.subarray(0,2048)).toString("utf8");
+    }
+    return {status:r.status,cors:r.headers.get("access-control-allow-origin")||"",type:r.headers.get("content-type")||"",data};
+  }finally{
+    if(reader){try{await reader.cancel();}catch{}}
+    clearTimeout(t);
+  }
+}
+async function inspectHlsChildren(url) {
+  const steps=[];
+  let current=url;
+  try{
+    for(let depth=0;depth<3;depth++){
+      const u=new URL(current);
+      if(u.protocol!=="https:"||["localhost","127.0.0.1"].includes(u.hostname)) throw new Error("nonpublic_child_url");
+      const response=await boundedMediaGet(current);
+      const cors=response.cors==="*"||response.cors==="https://3c5-o.github.io";
+      const manifest=response.data.replace(/^\uFEFF/,"").startsWith("#EXTM3U");
+      const step={depth,kind:depth===0?"manifest":manifest?"playlist":"segment",http_status:response.status,cors_allowed:cors,content_type:response.type.slice(0,48),manifest};
+      steps.push(step);
+      if(![200,206].includes(response.status)||!cors)return {ok:false,steps,issue:"child_http_or_cors_failed"};
+      if(!manifest)return {ok:depth>0,steps,issue:depth===0?"invalid_master_manifest":null};
+      const lines=response.data.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      const refs=lines.filter(x=>!x.startsWith("#"));
+      const child=refs[0];
+      if(!child)return {ok:false,steps,issue:"empty_or_incomplete_playlist"};
+      current=new URL(child,current).href;
+    }
+    return {ok:true,steps,issue:null};
+  }catch(error){return {ok:false,steps,issue:String(error?.name||"error")};}
+}
+
 async function namedMovie(title) {
   const name="title:"+title;
   try {
@@ -66,6 +109,11 @@ async function namedMovie(title) {
         http_status:h.status||0,issues:h.issues||[h.error||"unknown"]
       }));
       summary.push("| "+name+" #"+(index+1)+" | "+(h.status||r.status)+" | "+(h.playback_ready?"browser candidate":h.reachable?"server reachable only":"source unavailable")+" |");
+      if(title==="Speed Faster" && item.playback?.format==="m3u8" && item.video){
+        const tree=await inspectHlsChildren(item.video);
+        console.log("hls_children_outcome="+JSON.stringify({title,ok:tree.ok,issue:tree.issue,steps:tree.steps}));
+        summary.push("| HLS child segments ("+title+") | - | "+(tree.ok?"first child reachable":"child check failed: "+tree.issue)+" |");
+      }
     }
   }catch(error){
     console.log("named_source_error="+JSON.stringify({title,error:String(error?.message||error).slice(0,160)}));

@@ -112,12 +112,12 @@ async function namedMovie(title) {
     const entries=(listing.data?.data||[]).filter(item=>String(item.title||"").toLowerCase()===title.toLowerCase()).slice(0,2);
     if(listing.status!==200 || !entries.length) throw new Error("movie_not_found_in_api");
     for(const [index,item] of entries.entries()){
-      const r=await getJson("/api/v1/media-health?type=movie&id="+encodeURIComponent(item.id)+"&fresh=1",45000);
+      const r=await getJson("/api/v1/media-health?type=movie&id="+encodeURIComponent(item.id)+"&fresh=1"+(item.playback?.format==="m3u8"?"&deep=1":""),45000);
       const h=r.data?.health||{};
       console.log("named_source_outcome="+JSON.stringify({
         title,index:index+1,format:item.playback?.format||"unknown",
         reachable:h.reachable===true,browser_ready:h.playback_ready===true,
-        http_status:h.status||0,issues:h.issues||[h.error||"unknown"]
+        http_status:h.status||0,issues:h.issues||[h.error||"unknown"],hls_children:h.hls_children?.checks||[]
       }));
       summary.push("| "+name+" #"+(index+1)+" | "+(h.status||r.status)+" | "+(h.playback_ready?"browser candidate":h.reachable?"server reachable only":"source unavailable")+" |");
       if(title==="Speed Faster" && item.playback?.format==="m3u8" && item.video){

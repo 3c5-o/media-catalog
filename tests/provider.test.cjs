@@ -84,6 +84,42 @@ test("redirects cannot escape to a private network address",async()=>{
   }finally{global.fetch=original;}
 });
 
+test("safe CDN redirects preserve range verification",async()=>{
+  const original=global.fetch;
+  const calls=[];
+  try{
+    global.fetch=async(url,options)=>{
+      calls.push({url,redirect:options.redirect});
+      if(calls.length===1) return new Response(null,{status:302,headers:{location:"https://cdn.example/media.mp4"}});
+      return mockVideo(Buffer.from("\x00\x00\x00\x18ftypisom"),{range:"bytes 0-11/100000"});
+    };
+    const check=await provider.checkUrlHealth("https://media.example/moved.mp4",{fresh:true});
+    assert.equal(check.reachable,true);
+    assert.equal(check.playback_ready,true);
+    assert.equal(check.final_url,"https://cdn.example/media.mp4");
+    assert.equal(calls.length,2);
+    assert.equal(calls[0].redirect,"manual");
+  }finally{global.fetch=original;}
+});
+
+test("ambiguous title/poster pairs are flagged instead of assigned the same stable key",async()=>{
+  const original=global.fetch;
+  const movie={movies:[
+    {title:"Same title",logo:"https://posters.example/poster.jpg",url:"https://videos.example/cut1.mp4"},
+    {title:"Same title",logo:"https://posters.example/poster.jpg",url:"https://videos.example/cut2.mp4"}
+  ]};
+  const anime=[{series_name:"Series S1",episode_number:1,episode_name:"Episode 1",url:"https://videos.example/ep1.mp4"}];
+  try{
+    global.fetch=async url=>new Response(JSON.stringify(String(url).includes("movsameh")?movie:anime),{status:200});
+    const data=await provider.loadAll(true);
+    assert.equal(data.movies.length,2);
+    assert.notEqual(data.movies[0].id,data.movies[1].id);
+    assert.equal(data.movies[0].stable_key,null);
+    assert.equal(data.movies[1].stable_key,null);
+    assert.equal(data.movies[0].stable_key_ambiguous,true);
+  }finally{global.fetch=original;}
+});
+
 test("failure to fetch a refreshed source keeps the last known complete catalog and signals degradation",async()=>{
   const original=global.fetch;
   const movie={movies:[{title:"Source test movie",url:"https://archive.org/download/test/movie.mp4",logo:"https://media.example/poster.jpg"}]};

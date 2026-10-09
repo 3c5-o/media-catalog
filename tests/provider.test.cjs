@@ -69,6 +69,21 @@ test("CORS failure and HTTP 403 are visible instead of reporting working video",
   }finally{global.fetch=original;}
 });
 
+test("redirects cannot escape to a private network address",async()=>{
+  const original=global.fetch;
+  let calls=0;
+  try{
+    global.fetch=async()=>{
+      calls++;
+      return new Response(null,{status:302,headers:{location:"https://127.0.0.1/internal"}});
+    };
+    const health=await provider.checkUrlHealth("https://media.example/redirect.mp4",{fresh:true});
+    assert.equal(health.reachable,false);
+    assert.equal(health.error,"unsafe_or_excessive_redirect");
+    assert.equal(calls,1);
+  }finally{global.fetch=original;}
+});
+
 test("failure to fetch a refreshed source keeps the last known complete catalog and signals degradation",async()=>{
   const original=global.fetch;
   const movie={movies:[{title:"Source test movie",url:"https://archive.org/download/test/movie.mp4",logo:"https://media.example/poster.jpg"}]};
@@ -79,6 +94,12 @@ test("failure to fetch a refreshed source keeps the last known complete catalog 
     assert.equal(first.movies.length,1);
     assert.equal(first.episodes.length,1);
     assert.equal(first.stale,false);
+    const originalKey=first.movies[0].stable_key;
+    const oldId=first.movies[0].id;
+    movie.movies[0].url="https://archive.org/download/test/changed-source.mp4";
+    const updated=await provider.loadAll(true);
+    assert.equal(updated.movies[0].stable_key,originalKey,"stable key should survive a changed playback URL");
+    assert.notEqual(updated.movies[0].id,oldId,"legacy ID is kept for compatibility");
     global.fetch=async()=>{throw new Error("simulated outage");};
     const fallback=await provider.loadAll(true);
     assert.equal(fallback.movies.length,1);

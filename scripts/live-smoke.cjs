@@ -113,6 +113,20 @@ async function namedMovie(title) {
     if(listing.status!==200 || !entries.length) throw new Error("movie_not_found_in_api");
     // Verify alternate candidate selection without changing the published movie record.
     if(entries[0]?.id){
+      try{
+        const r=await getJson("/api/v1/playback?type=movie&platform=web&id="+encodeURIComponent(entries[0].id)+"&fresh=1",60000);
+        const item=r.data||{};
+        console.log("named_playback_resolution="+JSON.stringify({
+          title,endpoint_status:r.status,available:item.available===true,
+          candidate_format:item.selected?.format||null,checked:item.checked||0,
+          full_playback_verified:item.verified_full_playback===true,
+          failures:(item.candidates||[]).filter(x=>!x.ready_for_browser_probe).map(x=>({format:x.format,issues:x.issues||[]}))
+        }));
+        summary.push("| "+name+" resolver | "+r.status+" | "+(item.available?"candidate found":"not ready")+" |");
+      }catch(error){
+        // On PR runs this endpoint may not have reached production yet.
+        console.log("named_playback_resolution_pending="+JSON.stringify({title,error:String(error?.message||error).slice(0,150)}));
+      }
       const r=await getJson("/api/v1/media-health?type=movie&id="+encodeURIComponent(entries[0].id)+"&alternates=1&fresh=1",60000);
       const options=r.data?.candidates||[];
       console.log("named_source_candidates="+JSON.stringify({

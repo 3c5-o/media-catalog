@@ -63,6 +63,10 @@
       "destination": "/api/media-health"
     },
     {
+      "source": "/api/v1/playback",
+      "destination": "/api/playback"
+    },
+    {
       "source": "/movies-api",
       "destination": "/api/movies-full"
     },

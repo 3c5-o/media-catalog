@@ -111,6 +111,29 @@ test("safe CDN redirects preserve range verification",async()=>{
   }finally{global.fetch=original;}
 });
 
+
+test("movie source candidates include exact-title alternatives without merging unrelated films",()=>{
+  const selected={id:"film-a",title:"Speed Faster",genre:"اكشن",poster:"https://posters.example/a.jpg",video:"https://media.example/film.ts",playback:provider.playbackProfile("https://media.example/film.ts")};
+  const alternative={id:"film-b",title:"Speed Faster",genre:"اكشن",poster:"https://posters.example/b.jpg",video:"https://cdn.example/film.m3u8",playback:provider.playbackProfile("https://cdn.example/film.m3u8")};
+  const wrongGenre={id:"film-c",title:"Speed Faster",genre:"دراما",poster:"https://posters.example/c.jpg",video:"https://cdn.example/wrong.mp4",playback:provider.playbackProfile("https://cdn.example/wrong.mp4")};
+  const samePoster={id:"film-d",title:"Speed Faster",genre:"دراما",poster:selected.poster,video:"https://cdn.example/another.mp4",playback:provider.playbackProfile("https://cdn.example/another.mp4")};
+  const duplicateUrl={...alternative,id:"film-e"};
+  const options=provider.movieSourceCandidates([wrongGenre,duplicateUrl,alternative,samePoster],selected);
+  assert.deepEqual(options.map(x=>x.id),["film-a","film-e","film-d"]);
+  assert.equal(options.every(x=>x.playback_verified===false && x.status==="not_checked"),true);
+  assert.equal(options[1].source_match,"same_title_genre");
+  assert.equal(options[2].source_match,"same_poster");
+  assert.equal(provider.movieSourceCandidates([wrongGenre],selected).length,1);
+});
+
+test("movie source candidates do not group conflicting known release years",()=>{
+  const title="Same Title";
+  const poster="https://posters.example/same.jpg";
+  const make=(id,year)=>({id,title:title+" "+year,poster,genre:"اكشن",video:"https://cdn.example/"+id+".mp4",playback:provider.playbackProfile("https://cdn.example/"+id+".mp4")});
+  const a=make("a",2025),b=make("b",2026);
+  assert.deepEqual(provider.movieSourceCandidates([a,b],a).map(x=>x.id),["a"]);
+});
+
 test("ambiguous title/poster pairs are flagged instead of assigned the same stable key",async()=>{
   const original=global.fetch;
   const movie={movies:[

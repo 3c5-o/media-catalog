@@ -129,6 +129,48 @@ test("ambiguous title/poster pairs are flagged instead of assigned the same stab
   }finally{global.fetch=original;}
 });
 
+
+test("deep HLS check rejects playlists whose first segment is an actual PNG",async()=>{
+  const original=global.fetch;
+  const calls=[];
+  try{
+    global.fetch=async(url,options)=>{
+      calls.push({url,range:options.headers?.Range});
+      const isFirst=calls.length===1;
+      const bytes=isFirst
+        ? Buffer.from("#EXTM3U\n#EXTINF:6.0,\nsegment.png\n")
+        : Buffer.from("89504e470d0a1a0a0000000d49484452","hex");
+      return mockVideo(bytes,{
+        status:isFirst?200:206,
+        type:isFirst?"application/vnd.apple.mpegurl":"image/png",
+        cors:"*",range:isFirst?"":"bytes 0-15/1000"
+      });
+    };
+    const result=await provider.checkUrlHealth("https://media.example/broken-segment.m3u8",{deep:true,fresh:true});
+    assert.equal(calls.length,2);
+    assert.equal(result.reachable,true,"The master playlist itself is reachable");
+    assert.equal(result.playback_ready,false,"A PNG segment does not count as playable HLS");
+    assert.ok(result.issues.includes("hls_child_non_video"));
+    assert.equal(result.hls_children.checks[0].kind,"png_image");
+  }finally{global.fetch=original;}
+});
+
+test("deep HLS check accepts valid transport stream bytes and CORS",async()=>{
+  const original=global.fetch;
+  let n=0;
+  try{
+    global.fetch=async()=>{
+      n++;
+      if(n===1)return mockVideo(Buffer.from("#EXTM3U\n#EXTINF:8.0,\nsegment.ts\n"),{status:200,type:"application/vnd.apple.mpegurl",range:""});
+      const ts=Buffer.alloc(376);ts[0]=0x47;ts[188]=0x47;
+      return mockVideo(ts,{status:206,type:"video/mp2t",range:"bytes 0-375/99000"});
+    };
+    const r=await provider.checkUrlHealth("https://media.example/works.m3u8",{deep:true,fresh:true});
+    assert.equal(r.playback_ready,true);
+    assert.equal(r.hls_children.checks[0].kind,"mpeg_ts");
+  }finally{global.fetch=original;}
+});
+
 test("failure to fetch a refreshed source keeps the last known complete catalog and signals degradation",async()=>{
   const original=global.fetch;
   const movie={movies:[{title:"Source test movie",url:"https://archive.org/download/test/movie.mp4",logo:"https://media.example/poster.jpg"}]};

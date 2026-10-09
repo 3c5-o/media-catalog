@@ -1,4 +1,4 @@
-const { loadAll, send, requireGet, queryOf, itemById, checkUrlHealth } = require("../lib/provider");
+const { loadAll, send, requireGet, queryOf, itemById, checkUrlHealth, movieSourceCandidates } = require("../lib/provider");
 
 function clamp(value,fallback,min,max){
   const n=Number.parseInt(value,10);
@@ -66,6 +66,34 @@ module.exports=async function handler(req,res){
 
     const item=itemById(source,id);
     if(!item) return send(res,404,{ok:false,error:type+"_not_found"},60);
+    if(type==="movie" && String(q.alternates||"")==="1"){
+      const candidates=movieSourceCandidates(all.movies,item,4);
+      // Check each candidate in parallel, bounded by the function execution timeout.
+      // HLS must inspect the first actual media segment to reject image error pages.
+      const results=await Promise.all(candidates.map(async candidate=>{
+        const candidateHealth=await checkUrlHealth(candidate.url,{
+          fresh,deep:candidate.format==="m3u8"
+        });
+        return {
+          id:candidate.id,format:candidate.format,host:candidate.host,
+          source_match:candidate.source_match,
+          health:candidateHealth
+        };
+      }));
+      const ready=results.filter(row=>row.health?.playback_ready===true);
+      // A single successful byte probe is not a full playback test.
+      const preference={mp4:0,m4v:1,webm:2,m3u8:3,ogv:4,ogg:4,ts:5,mkv:6};
+      ready.sort((a,b)=>(preference[a.format]??9)-(preference[b.format]??9));
+      return send(res,200,{
+        ok:true,api_version:"v1",type,id:item.id,title:item.title,
+        mode:"source_candidates_checked",
+        candidates:results,
+        playable_candidate_id:ready[0]?.id||null,
+        verified_full_playback:false,
+        note:"Small byte probes only. Never automatically publish or replace movie URLs on this result.",
+        checked:results.length
+      },0);
+    }
     const health=await checkUrlHealth(item.video,{fresh,deep});
     return send(res,200,{
       ok:true,
